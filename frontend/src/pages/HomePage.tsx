@@ -14,15 +14,15 @@ export function HomePage() {
         Welcome to TeamSync
       </h1>
       <p className="mt-4 text-lg leading-8 text-slate-600">
-        The application shell is ready. Team and project features will be added
-        in their planned implementation modules.
+        Create a workspace to bring your team together, manage members, and set
+        access roles in one shared space.
       </p>
       {user ? (
         <Link
-          to="/profile"
+          to="/workspaces/new"
           className="mt-8 inline-flex rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
         >
-          View profile
+          Create a workspace
         </Link>
       ) : (
         <Link

@@ -51,8 +51,15 @@ media storage and must not expose this development media route.
 
 ## Rate limits and password security
 
-Authentication endpoints use scoped DRF throttles. Django's configured
-password validators are applied at registration and password reset. User
-passwords are stored only as Django password hashes. The API tests use an
-in-memory SQLite database, so the PostgreSQL application role does not need
-`CREATEDB`.
+Authentication endpoints use scoped DRF throttles. Account registration is
+limited to 10 attempts per hour per client IP by default; configure
+`AUTH_REGISTER_RATE` (for example, `10/hour`) in the private environment file
+to match deployment traffic and abuse controls. Failed validation attempts
+also count toward this limit. A `429` response includes the remaining wait
+time; if an older server configuration is still loaded, restart Django to
+apply the setting.
+
+Django's configured password validators are applied at registration and
+password reset. User passwords are stored only as Django password hashes. The
+API tests use an in-memory SQLite database, so the PostgreSQL application role
+does not need `CREATEDB`.

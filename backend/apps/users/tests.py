@@ -3,6 +3,7 @@ import tempfile
 from io import BytesIO
 from urllib.parse import parse_qs, urlparse
 
+from django.core.cache import cache
 from django.core import mail
 from django.test import Client, TestCase, override_settings
 from django.test.client import MULTIPART_CONTENT, encode_multipart
@@ -94,6 +95,23 @@ class AuthenticationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("email", response.json())
+
+    def test_registration_throttle_allows_ten_attempts_per_hour(self):
+        cache.clear()
+        for attempt in range(10):
+            with self.subTest(attempt=attempt):
+                response = self.register(
+                    username=f"rate-user-{attempt}",
+                    email=f"rate-user-{attempt}@example.com",
+                )
+                self.assertEqual(response.status_code, 201, response.content)
+
+        blocked = self.register(
+            username="rate-user-over-limit",
+            email="rate-user-over-limit@example.com",
+        )
+        self.assertEqual(blocked.status_code, 429)
+        self.assertIn("available in", blocked.json()["detail"])
 
     def test_login_accepts_email_sets_httponly_cookies_and_current_user(self):
         user = self.create_user()

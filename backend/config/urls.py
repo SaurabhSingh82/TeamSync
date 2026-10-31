@@ -8,6 +8,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("apps.core.urls")),
     path("api/auth/", include("apps.users.urls")),
+    path("api/", include("apps.workspaces.urls")),
 ]
 
 if settings.DEBUG:
