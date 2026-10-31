@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "apps.core",
     "apps.users",
+    "apps.workspaces",
 ]
 
 MIDDLEWARE = [
@@ -118,7 +119,7 @@ REST_FRAMEWORK = {
         "anon": "60/minute",
         "user": "120/minute",
         "auth_login": "10/minute",
-        "auth_register": "5/hour",
+        "auth_register": env("AUTH_REGISTER_RATE", default="10/hour"),
         "auth_email": "5/hour",
     },
 }
@@ -142,11 +143,13 @@ SIMPLE_JWT = {
 EMAIL_BACKEND = env(
     "DJANGO_EMAIL_BACKEND",
     default=(
-        "django.core.mail.backends.console.EmailBackend"
+        "apps.core.email_backends.InteractiveConsoleEmailBackend"
         if DEBUG
         else "django.core.mail.backends.smtp.EmailBackend"
     ),
 )
+if EMAIL_BACKEND == "django.core.mail.backends.console.EmailBackend":
+    EMAIL_BACKEND = "apps.core.email_backends.InteractiveConsoleEmailBackend"
 EMAIL_HOST = env("EMAIL_HOST", default="")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")

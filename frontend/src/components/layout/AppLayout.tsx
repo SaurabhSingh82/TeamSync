@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router'
 
 import { getApiErrorMessage } from '../../auth/errors'
 import { useAuth } from '../../auth/useAuth'
+import { WorkspaceSelector } from '../workspaces/WorkspaceSelector'
 
 const linkClassName = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-3 py-2 text-sm font-medium transition ${
@@ -44,6 +45,7 @@ export function AppLayout() {
             {!loading &&
               (user ? (
                 <>
+                  <WorkspaceSelector userId={user.id} />
                   <NavLink to="/profile" className={linkClassName}>
                     Profile
                   </NavLink>
