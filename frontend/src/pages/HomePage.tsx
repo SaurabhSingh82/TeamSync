@@ -1,6 +1,10 @@
 import { Link } from 'react-router'
 
+import { useAuth } from '../auth/useAuth'
+
 export function HomePage() {
+  const { user } = useAuth()
+
   return (
     <section className="max-w-2xl">
       <p className="text-sm font-semibold uppercase tracking-wider text-indigo-600">
@@ -13,12 +17,21 @@ export function HomePage() {
         The application shell is ready. Team and project features will be added
         in their planned implementation modules.
       </p>
-      <Link
-        to="/dashboard"
-        className="mt-8 inline-flex rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-      >
-        View placeholder
-      </Link>
+      {user ? (
+        <Link
+          to="/profile"
+          className="mt-8 inline-flex rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+        >
+          View profile
+        </Link>
+      ) : (
+        <Link
+          to="/register"
+          className="mt-8 inline-flex rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+        >
+          Get started
+        </Link>
+      )}
     </section>
   )
 }
