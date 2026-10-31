@@ -46,6 +46,8 @@ placeholders; `.env` is ignored by Git.
 PostgreSQL must listen only on `127.0.0.1:5432` for local development. Never
 use local trust authentication or the development database credentials in
 production.
+The authentication API tests use an isolated in-memory SQLite test database,
+so the PostgreSQL application role does not need the `CREATEDB` privilege.
 
 ### Backend
 
@@ -79,10 +81,22 @@ npm run build
 npm run lint
 ```
 
+Backend API tests use an isolated in-memory SQLite database so the local
+application role does not need `CREATEDB`:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python.exe manage.py test apps.users apps.core --settings=config.test_settings
+```
+
 ## Foundation notes
 
 - The custom UUID-based user model is configured before the first database
-  migration. Generate its initial migration before running `migrate`.
-- No authentication endpoints or other product modules are implemented yet.
+  migration. The M01 account fields and APIs are in the `users` app.
+- Authentication uses HttpOnly JWT cookies, CSRF protection, rotating refresh
+  tokens, and a console email backend for local reset/verification flows. See
+  [authentication.md](docs/authentication.md).
+- No workspace, project, task, or other post-M01 product modules are
+  implemented yet.
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

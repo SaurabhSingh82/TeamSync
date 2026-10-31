@@ -266,6 +266,7 @@ try {
         'DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1',
         "DATABASE_URL=postgres://teamsync:$encodedPassword@127.0.0.1:5432/teamsync",
         'CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173',
+        'CSRF_TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173',
         'VITE_API_BASE_URL=/api'
     ) -join "`r`n"
     [IO.File]::WriteAllText($environmentPath, '', [Text.UTF8Encoding]::new($false))
