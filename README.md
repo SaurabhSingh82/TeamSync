@@ -86,7 +86,7 @@ application role does not need `CREATEDB`:
 
 ```powershell
 Set-Location backend
-..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.core --settings=config.test_settings
+..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.core --settings=config.test_settings
 ```
 
 PostgreSQL-specific row-lock and concurrency tests run against a separate test
@@ -97,6 +97,7 @@ pre-provisioned test database without dropping it:
 
 ```powershell
 ..\.venv\Scripts\python.exe manage.py test apps.workspaces.tests_postgres --settings=config.postgres_test_settings --keepdb
+..\.venv\Scripts\python.exe manage.py test apps.projects.tests_postgres --settings=config.postgres_test_settings --keepdb
 ```
 
 Workspace invitation emails use a transactional outbox. Creation returns
@@ -117,12 +118,15 @@ can result in a duplicate email after the claim lease expires.
 
 - The custom UUID-based user model is configured before the first database
   migration. M01 account fields and APIs are in the `users` app; M02 workspace
-  management and invitations are in the `workspaces` app.
+  management and invitations are in `workspaces`; M03 projects and project
+  membership are in `projects`.
 - Authentication uses HttpOnly JWT cookies, CSRF protection, rotating refresh
   tokens, and a console email backend for local reset/verification flows. See
   [authentication.md](docs/authentication.md).
 - Workspace membership and invitation behavior is documented in
   [workspaces.md](docs/workspaces.md).
-- Projects, tasks, and later product modules are not implemented yet.
+- Project lifecycle and project membership are documented in
+  [projects.md](docs/projects.md). Tasks, Kanban, and later product modules
+  are not implemented yet.
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

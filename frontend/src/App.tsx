@@ -8,6 +8,11 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { ProjectLayout } from './components/projects/ProjectLayout'
+import { ProjectsPage } from './pages/ProjectsPage'
+import { ProjectMembersPage } from './pages/ProjectMembersPage'
+import { ProjectOverviewPage } from './pages/ProjectOverviewPage'
+import { ProjectSettingsPage } from './pages/ProjectSettingsPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
@@ -59,6 +64,26 @@ function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="workspaces/:workspaceId/projects"
+          element={
+            <RequireAuth>
+              <ProjectsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="workspaces/:workspaceId/projects/:projectId"
+          element={
+            <RequireAuth>
+              <ProjectLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<ProjectOverviewPage />} />
+          <Route path="members" element={<ProjectMembersPage />} />
+          <Route path="settings" element={<ProjectSettingsPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

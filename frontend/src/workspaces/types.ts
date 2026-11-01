@@ -24,6 +24,7 @@ export interface WorkspaceMember {
   username: string
   first_name: string
   last_name: string
+  avatar_url: string | null
   role: WorkspaceRole
   joined_at: string
 }

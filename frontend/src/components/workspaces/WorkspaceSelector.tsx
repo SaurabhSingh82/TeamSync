@@ -5,7 +5,13 @@ import { getApiErrorMessage } from '../../auth/errors'
 import { listWorkspaces } from '../../workspaces/api'
 import type { Workspace } from '../../workspaces/types'
 
-export function WorkspaceSelector({ userId }: { userId: string }) {
+export function WorkspaceSelector({
+  userId,
+  selectId = 'workspace-selector',
+}: {
+  userId: string
+  selectId?: string
+}) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [error, setError] = useState('')
   const [loadedKey, setLoadedKey] = useState('')
@@ -40,14 +46,14 @@ export function WorkspaceSelector({ userId }: { userId: string }) {
   }, [requestKey, userId])
 
   return (
-    <div className="flex items-center gap-2">
-      <label className="sr-only" htmlFor="workspace-selector">
+    <div className="flex min-w-0 items-center gap-2">
+      <label className="sr-only" htmlFor={selectId}>
         Switch workspace
       </label>
       <select
-        className="max-w-48 rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800"
+        className="min-w-0 max-w-48 rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teamsync-navy"
         disabled={loading || workspaces.length === 0}
-        id="workspace-selector"
+        id={selectId}
         onChange={(event) => {
           if (event.target.value) navigate(`/workspaces/${event.target.value}`)
         }}
@@ -67,7 +73,7 @@ export function WorkspaceSelector({ userId }: { userId: string }) {
         ))}
       </select>
       <Link
-        className="whitespace-nowrap rounded-md px-2 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+        className="hidden whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium text-teamsync-navy hover:bg-slate-100 lg:inline-flex"
         to="/workspaces/new"
       >
         New workspace

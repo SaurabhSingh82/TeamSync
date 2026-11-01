@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.projects.services import remove_workspace_member_from_projects
 from apps.workspaces.models import WorkspaceInvitation, WorkspaceMember
 from apps.workspaces.pagination import WorkspacePagination
 from apps.workspaces.serializers import (
@@ -127,7 +128,11 @@ class WorkspaceMemberListView(APIView):
         )
         paginator = WorkspacePagination()
         page = paginator.paginate_queryset(members, request, view=self)
-        serializer = WorkspaceMemberSerializer(page, many=True)
+        serializer = WorkspaceMemberSerializer(
+            page,
+            many=True,
+            context={"request": request},
+        )
         return paginator.get_paginated_response(serializer.data)
 
 
@@ -165,7 +170,12 @@ class WorkspaceMemberDetailView(APIView):
                 raise PermissionDenied("Admins cannot assign the Admin role.")
             member.role = new_role
             member.save(update_fields=["role"])
-        return Response(WorkspaceMemberSerializer(member).data)
+        return Response(
+            WorkspaceMemberSerializer(
+                member,
+                context={"request": request},
+            ).data
+        )
 
     def delete(self, request, workspace_id, member_id):
         with transaction.atomic():
@@ -187,6 +197,10 @@ class WorkspaceMemberDetailView(APIView):
                 and member.role not in MANAGED_MEMBER_ROLES
             ):
                 raise PermissionDenied("Admins can only manage Members and Viewers.")
+            remove_workspace_member_from_projects(
+                workspace=workspace,
+                user_id=member.user_id,
+            )
             member.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -219,7 +233,10 @@ class OwnershipTransferView(APIView):
                     workspace,
                     context={"request": request, "membership": membership},
                 ).data,
-                "new_owner": WorkspaceMemberSerializer(new_membership).data,
+                "new_owner": WorkspaceMemberSerializer(
+                    new_membership,
+                    context={"request": request},
+                ).data,
             }
         )
 
@@ -320,7 +337,10 @@ class AcceptWorkspaceInvitationView(APIView):
                     membership.workspace,
                     context={"request": request, "membership": membership},
                 ).data,
-                "membership": WorkspaceMemberSerializer(membership).data,
+                "membership": WorkspaceMemberSerializer(
+                    membership,
+                    context={"request": request},
+                ).data,
             },
             status=status.HTTP_201_CREATED,
         )

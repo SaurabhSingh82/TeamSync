@@ -63,6 +63,11 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
     first_name = serializers.CharField(source="user.first_name", read_only=True)
     last_name = serializers.CharField(source="user.last_name", read_only=True)
+    avatar_url = serializers.ImageField(
+        source="user.avatar",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = WorkspaceMember
@@ -72,6 +77,7 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
             "username",
             "first_name",
             "last_name",
+            "avatar_url",
             "role",
             "joined_at",
         )
