@@ -20,6 +20,10 @@ not globally unique.
 - `POST /api/workspaces/{workspace_id}/ownership/transfer/` - transfer
   ownership with `{"member_id": "<workspace member UUID>"}`.
 
+Workspace member list and mutation responses include the profile `avatar_url`
+as an absolute URL or `null`. The field is read-only and does not change
+workspace membership behavior.
+
 Users without workspace membership receive `404` for workspace-scoped
 resources. Insufficient role permissions return `403`.
 
@@ -102,6 +106,10 @@ database constraints and row-lock behavior.
 Creation and ownership-transfer services maintain the Workspace owner FK and
 its Owner membership atomically. The workspace owner cannot be removed; a
 workspace deletion cascades to its memberships, invitations, and outbox rows.
+
+After M03, removing a workspace member also removes their project memberships.
+If that would leave a project without any Project Manager, the removal is
+rejected until another Manager is appointed. See [projects.md](./projects.md).
 
 The ordinary test suite uses in-memory SQLite. PostgreSQL concurrency tests
 require a PostgreSQL test database and a role allowed to create it. Run them

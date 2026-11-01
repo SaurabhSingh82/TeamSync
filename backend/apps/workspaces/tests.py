@@ -195,6 +195,7 @@ class WorkspaceApiTests(TestCase):
                 self.assertEqual(detail.status_code, 200)
                 self.assertEqual(members.status_code, 200)
                 self.assertGreaterEqual(members.json()["count"], 4)
+                self.assertIn("avatar_url", members.json()["results"][0])
 
     def test_only_owner_and_admin_can_update_workspace(self):
         for client, csrf in (
