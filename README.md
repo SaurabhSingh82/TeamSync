@@ -1,9 +1,9 @@
 # TeamSync
 
 TeamSync is a collaborative project-management application. This repository
-contains the engineering foundation and M01-M07 modules: account management,
-workspaces, projects, task management, Kanban boards, collaboration, and
-private task/comment attachments.
+contains the engineering foundation and M01-M08 modules: account management,
+workspaces, projects, task management, Kanban boards, collaboration, private
+task/comment attachments, notifications, and workspace activity.
 
 ## Repository layout
 
@@ -88,10 +88,11 @@ application role does not need `CREATEDB`:
 
 ```powershell
 Set-Location backend
-..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.tasks apps.core --settings=config.test_settings
+..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.tasks apps.notifications apps.core --settings=config.test_settings
 ```
 
-This is the complete SQLite-compatible backend suite, including `apps.tasks`.
+This is the complete SQLite-compatible backend suite, including `apps.tasks`
+and `apps.notifications`.
 PostgreSQL-specific row-lock and concurrency tests run against a separate test
 database (`test_teamsync` with the default local database). The configured
 PostgreSQL role needs `CREATEDB` for the first run, or an administrator can
@@ -102,6 +103,7 @@ pre-provisioned test database without dropping it:
 ..\.venv\Scripts\python.exe manage.py test apps.workspaces.tests_postgres --settings=config.postgres_test_settings --keepdb
 ..\.venv\Scripts\python.exe manage.py test apps.projects.tests_postgres --settings=config.postgres_test_settings --keepdb
 ..\.venv\Scripts\python.exe manage.py test apps.tasks.tests_postgres --settings=config.postgres_test_settings --keepdb
+..\.venv\Scripts\python.exe manage.py test apps.notifications.tests_postgres --settings=config.postgres_test_settings --keepdb
 ```
 
 Workspace invitation emails use a transactional outbox. Creation returns
@@ -118,6 +120,13 @@ and is not written to redirected output or application logs. Delivery uses an
 at-least-once outbox; an interruption after the mail server accepts a message
 can result in a duplicate email after the claim lease expires.
 
+Deadline notifications are database-backed and safe to dispatch repeatedly.
+Run the reminder command on a schedule (for example, once each morning):
+
+```powershell
+..\.venv\Scripts\python.exe manage.py send_deadline_reminders
+```
+
 ## Foundation notes
 
 - The custom UUID-based user model is configured before the first database
@@ -133,6 +142,7 @@ can result in a duplicate email after the claim lease expires.
 - Project lifecycle and project membership are documented in
   [projects.md](docs/projects.md); task management, Kanban boards, comments,
   mentions, task activity, and private attachments are documented in
-  [tasks.md](docs/tasks.md). Later product modules are not implemented yet.
+  [tasks.md](docs/tasks.md). Notifications and the workspace activity feed are
+  documented in [notifications.md](docs/notifications.md).
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

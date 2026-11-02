@@ -4,8 +4,8 @@ M04 adds project-scoped tasks, assignments, collaborators, labels, subtasks,
 and basic comments. M05 adds per-project Kanban boards, configurable columns,
 persisted ordering, task activity, and a task-detail drawer. M06 adds threaded
 replies, validated project-member mentions, and collaboration activity events.
-M07 adds private task and comment attachments. Notifications are outside these
-modules.
+M07 adds private task and comment attachments. M08 adds in-app notifications
+and a workspace activity feed; see [notifications.md](notifications.md).
 
 ## Permissions
 
@@ -108,7 +108,7 @@ positions remain based on the full column order.
 The project Tasks view has Board and List modes. Opening a task from either
 mode displays a detail drawer over the existing view; closing it preserves the
 view, URL query state, and in-memory filters. Task activity records creation,
-detail updates, and board moves.
+detail updates, board moves, assignment changes, and collaboration events.
 
 ## Collaboration (M06)
 
