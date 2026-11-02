@@ -1,7 +1,79 @@
 from rest_framework import serializers
 
 from apps.projects.serializers import ProjectMemberReadSerializer
-from apps.tasks.models import Label, Subtask, Task, TaskComment
+from apps.tasks.models import (
+    BoardColumn,
+    Label,
+    ProjectBoard,
+    Subtask,
+    Task,
+    TaskActivity,
+    TaskComment,
+)
+
+
+class BoardColumnReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BoardColumn
+        fields = (
+            "id",
+            "board_id",
+            "name",
+            "status",
+            "position",
+            "is_default",
+            "archived_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
+class ProjectBoardReadSerializer(serializers.ModelSerializer):
+    project_id = serializers.UUIDField(read_only=True)
+    columns = BoardColumnReadSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProjectBoard
+        fields = ("id", "project_id", "version", "columns", "created_at", "updated_at")
+        read_only_fields = fields
+
+
+class BoardColumnWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BoardColumn
+        fields = ("name", "status", "position")
+        extra_kwargs = {
+            "position": {"required": False},
+        }
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Column name cannot be blank.")
+        return value
+
+
+class BoardVersionSerializer(serializers.Serializer):
+    expected_board_version = serializers.IntegerField(min_value=1)
+
+
+class BoardReorderSerializer(BoardVersionSerializer):
+    column_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
+
+
+class BoardColumnMutationSerializer(BoardVersionSerializer):
+    destination_column_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class TaskMoveSerializer(serializers.Serializer):
+    column_id = serializers.UUIDField()
+    position = serializers.IntegerField(min_value=0)
+    expected_task_version = serializers.IntegerField(min_value=1)
+    expected_board_version = serializers.IntegerField(min_value=1)
 
 
 class TaskWriteSerializer(serializers.ModelSerializer):
@@ -37,6 +109,7 @@ class TaskWriteSerializer(serializers.ModelSerializer):
 
 class TaskCreateSerializer(TaskWriteSerializer):
     project_id = serializers.UUIDField()
+    board_column_id = serializers.UUIDField(required=False)
     assignee_ids = serializers.ListField(
         child=serializers.UUIDField(),
         required=False,
@@ -56,11 +129,27 @@ class TaskCreateSerializer(TaskWriteSerializer):
     class Meta(TaskWriteSerializer.Meta):
         fields = (
             "project_id",
+            "board_column_id",
             *TaskWriteSerializer.Meta.fields,
             "assignee_ids",
             "collaborator_ids",
             "label_ids",
         )
+
+
+class TaskUpdateSerializer(TaskWriteSerializer):
+    expected_version = serializers.IntegerField(min_value=1, write_only=True)
+
+    class Meta(TaskWriteSerializer.Meta):
+        fields = (*TaskWriteSerializer.Meta.fields, "expected_version")
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if "expected_version" not in attrs:
+            raise serializers.ValidationError(
+                {"expected_version": "This field is required for task updates."}
+            )
+        return attrs
 
 
 class LabelReadSerializer(serializers.ModelSerializer):
@@ -72,6 +161,7 @@ class LabelReadSerializer(serializers.ModelSerializer):
 
 class TaskReadSerializer(serializers.ModelSerializer):
     project_id = serializers.UUIDField(read_only=True)
+    board_column_id = serializers.UUIDField(read_only=True)
     creator_id = serializers.UUIDField(read_only=True, allow_null=True)
     creator_username = serializers.CharField(
         source="creator.username",
@@ -89,6 +179,9 @@ class TaskReadSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "project_id",
+            "board_column_id",
+            "position",
+            "version",
             "title",
             "description",
             "creator_id",
@@ -105,6 +198,7 @@ class TaskReadSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "archived_at",
+            "completed_at",
         )
         read_only_fields = fields
 
@@ -202,6 +296,20 @@ class TaskCommentReadSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+        read_only_fields = fields
+
+
+class TaskActivityReadSerializer(serializers.ModelSerializer):
+    actor_id = serializers.UUIDField(read_only=True, allow_null=True)
+    actor_username = serializers.CharField(
+        source="actor.username",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = TaskActivity
+        fields = ("id", "task_id", "actor_id", "actor_username", "action", "metadata", "created_at")
         read_only_fields = fields
 
 

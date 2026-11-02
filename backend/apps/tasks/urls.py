@@ -1,5 +1,15 @@
 from django.urls import path
 
+from apps.tasks.board_views import (
+    BoardColumnArchiveView,
+    BoardColumnDetailView,
+    BoardColumnRestoreView,
+    ProjectBoardColumnListCreateView,
+    ProjectBoardColumnReorderView,
+    ProjectBoardView,
+    TaskActivityListView,
+    TaskMoveView,
+)
 from apps.tasks.views import (
     ProjectLabelListCreateView,
     TaskActionView,
@@ -15,6 +25,46 @@ from apps.tasks.views import (
 
 
 urlpatterns = [
+    path(
+        "projects/<uuid:project_id>/board/",
+        ProjectBoardView.as_view(),
+        name="project-board",
+    ),
+    path(
+        "projects/<uuid:project_id>/columns/",
+        ProjectBoardColumnListCreateView.as_view(),
+        name="project-board-columns",
+    ),
+    path(
+        "projects/<uuid:project_id>/columns/reorder/",
+        ProjectBoardColumnReorderView.as_view(),
+        name="project-board-columns-reorder",
+    ),
+    path(
+        "columns/<uuid:column_id>/archive/",
+        BoardColumnArchiveView.as_view(),
+        name="board-column-archive",
+    ),
+    path(
+        "columns/<uuid:column_id>/restore/",
+        BoardColumnRestoreView.as_view(),
+        name="board-column-restore",
+    ),
+    path(
+        "columns/<uuid:column_id>/",
+        BoardColumnDetailView.as_view(),
+        name="board-column-detail",
+    ),
+    path(
+        "tasks/<uuid:task_id>/move/",
+        TaskMoveView.as_view(),
+        name="task-move",
+    ),
+    path(
+        "tasks/<uuid:task_id>/activity/",
+        TaskActivityListView.as_view(),
+        name="task-activity",
+    ),
     path("tasks/", TaskListCreateView.as_view(), name="task-list-create"),
     path("tasks/<uuid:task_id>/", TaskDetailView.as_view(), name="task-detail"),
     path(

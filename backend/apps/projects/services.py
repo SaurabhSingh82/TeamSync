@@ -39,6 +39,9 @@ def create_project(*, workspace, creator, values):
             user=creator,
             role=ProjectMember.Role.MANAGER,
         )
+        from apps.tasks.board_services import create_project_board
+
+        create_project_board(project)
     return project
 
 

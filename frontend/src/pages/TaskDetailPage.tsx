@@ -9,7 +9,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 
 import { getApiErrorMessage } from '../auth/errors'
 import { useAuth } from '../auth/useAuth'
@@ -36,6 +36,7 @@ import {
   getTask,
   listProjectLabels,
   listTaskComments,
+  listTaskActivity,
   listTaskSubtasks,
   removeTaskAssignee,
   removeTaskCollaborator,
@@ -47,16 +48,30 @@ import {
 } from '../tasks/api'
 import { formatTaskDate, formatTaskTimestamp } from '../tasks/format'
 import { personName, taskPriorities, taskStatuses } from '../tasks/options'
-import type { Subtask, Task, TaskComment, TaskLabel, TaskPriority, TaskStatus } from '../tasks/types'
+import type {
+  Subtask,
+  Task,
+  TaskActivity,
+  TaskComment,
+  TaskLabel,
+  TaskPriority,
+  TaskStatus,
+} from '../tasks/types'
 
-export function TaskDetailPage() {
+export function TaskDetailPage({
+  onTaskChanged,
+}: {
+  onTaskChanged?: () => void
+} = {}) {
   const { taskId, workspaceId, projectId } = useParams()
+  const location = useLocation()
   const { project } = useProjectContext()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [task, setTask] = useState<Task | null>(null)
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [comments, setComments] = useState<TaskComment[]>([])
+  const [activity, setActivity] = useState<TaskActivity[]>([])
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [labels, setLabels] = useState<TaskLabel[]>([])
   const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null)
@@ -67,21 +82,28 @@ export function TaskDetailPage() {
 
   const refresh = useCallback(async () => {
     if (!taskId) return
-    const [currentTask, subtaskPage, commentPage, projectMembers, projectLabels] =
+    const [currentTask, subtaskPage, commentPage, activityPage, projectMembers, projectLabels] =
       await Promise.all([
         getTask(taskId),
         listTaskSubtasks(taskId),
         listTaskComments(taskId),
+        listTaskActivity(taskId),
         listAllProjectMembers(project.id),
         listProjectLabels(project.id),
       ])
     setTask(currentTask)
     setSubtasks(subtaskPage.results)
     setComments(commentPage.results)
+    setActivity(activityPage.results)
     setMembers(projectMembers)
     setLabels(projectLabels)
     setError('')
   }, [project.id, taskId])
+
+  const refreshAndNotify = useCallback(async () => {
+    await refresh()
+    onTaskChanged?.()
+  }, [onTaskChanged, refresh])
 
   useEffect(() => {
     let active = true
@@ -90,14 +112,16 @@ export function TaskDetailPage() {
       getTask(taskId),
       listTaskSubtasks(taskId),
       listTaskComments(taskId),
+      listTaskActivity(taskId),
       listAllProjectMembers(project.id),
       listProjectLabels(project.id),
     ])
-      .then(([currentTask, subtaskPage, commentPage, projectMembers, projectLabels]) => {
+      .then(([currentTask, subtaskPage, commentPage, activityPage, projectMembers, projectLabels]) => {
         if (active) {
           setTask(currentTask)
           setSubtasks(subtaskPage.results)
           setComments(commentPage.results)
+          setActivity(activityPage.results)
           setMembers(projectMembers)
           setLabels(projectLabels)
           setError('')
@@ -141,7 +165,7 @@ export function TaskDetailPage() {
     try {
       await action()
       setNotice(successMessage)
-      await refresh()
+      await refreshAndNotify()
     } catch (actionError) {
       setError(getApiErrorMessage(actionError))
     } finally {
@@ -155,7 +179,11 @@ export function TaskDetailPage() {
     setError('')
     try {
       await deleteTask(taskId)
-      navigate(`/workspaces/${workspaceId}/projects/${projectId}/tasks`, { replace: true })
+      onTaskChanged?.()
+      navigate(
+        `/workspaces/${workspaceId}/projects/${projectId}/tasks${location.search}`,
+        { replace: true },
+      )
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError))
       setConfirmDelete(false)
@@ -170,7 +198,10 @@ export function TaskDetailPage() {
     setError('')
     try {
       const duplicate = await duplicateTask(taskId)
-      navigate(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${duplicate.id}`)
+      onTaskChanged?.()
+      navigate(
+        `/workspaces/${workspaceId}/projects/${projectId}/tasks/${duplicate.id}${location.search}`,
+      )
     } catch (duplicateError) {
       setError(getApiErrorMessage(duplicateError))
     } finally {
@@ -185,7 +216,7 @@ export function TaskDetailPage() {
     return (
       <section>
         <p className="text-sm text-red-800" role="alert">{error || 'Task not found.'}</p>
-        <Link className="mt-4 inline-flex text-sm font-semibold text-teamsync-navy hover:underline" to={`/workspaces/${workspaceId}/projects/${projectId}/tasks`}>
+        <Link className="mt-4 inline-flex text-sm font-semibold text-teamsync-navy hover:underline" to={`/workspaces/${workspaceId}/projects/${projectId}/tasks${location.search}`}>
           Return to project tasks
         </Link>
       </section>
@@ -199,7 +230,7 @@ export function TaskDetailPage() {
     <section>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-slate-500">
-          <Link className="hover:text-teamsync-navy" to={`/workspaces/${workspaceId}/projects/${projectId}/tasks`}>
+          <Link className="hover:text-teamsync-navy" to={`/workspaces/${workspaceId}/projects/${projectId}/tasks${location.search}`}>
             Tasks
           </Link>
           <span aria-hidden="true" className="mx-2">/</span>
@@ -247,8 +278,11 @@ export function TaskDetailPage() {
             canEdit={canEdit}
             key={`${task.id}:${task.updated_at}`}
             onSave={async (values) => {
-              await updateTask(task.id, values)
-              await refresh()
+              await updateTask(task.id, {
+                ...values,
+                expected_version: task.version,
+              })
+              await refreshAndNotify()
               setNotice('Task updated.')
             }}
             task={task}
@@ -256,7 +290,7 @@ export function TaskDetailPage() {
           <SubtaskSection
             canEdit={canEdit}
             onError={setError}
-            onRefresh={refresh}
+            onRefresh={refreshAndNotify}
             subtasks={subtasks}
             task={task}
           />
@@ -266,7 +300,7 @@ export function TaskDetailPage() {
             currentUserId={user?.id ?? ''}
             isManager={isManager}
             onError={setError}
-            onRefresh={refresh}
+            onRefresh={refreshAndNotify}
             taskId={task.id}
           />
         </div>
@@ -299,6 +333,14 @@ export function TaskDetailPage() {
             )}
           </section>
 
+          <ActivitySection activity={activity} />
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="font-semibold text-slate-950">Attachments</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              File attachments will be available with the M07 integration.
+            </p>
+          </section>
+
           <MembershipSection
             canManage={isManager}
             canManageOwnAssignments={canManageOwnAssignments}
@@ -306,7 +348,7 @@ export function TaskDetailPage() {
             currentUserIsCollaborator={currentUserIsCollaborator}
             members={members}
             onError={setError}
-            onRefresh={refresh}
+            onRefresh={refreshAndNotify}
             task={task}
             userId={user?.id ?? ''}
           />
@@ -316,7 +358,7 @@ export function TaskDetailPage() {
             isManager={isManager}
             labels={labels}
             onError={setError}
-            onRefresh={refresh}
+            onRefresh={refreshAndNotify}
             task={task}
           />
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1000,6 +1042,37 @@ function CommentSection({
         </ul>
       ) : (
         <p className="mt-4 text-sm text-slate-500">No comments yet.</p>
+      )}
+    </section>
+  )
+}
+
+function ActivitySection({ activity }: { activity: TaskActivity[] }) {
+  function describe(item: TaskActivity) {
+    if (item.action === 'created') return 'created this task'
+    if (item.action === 'moved') return 'moved this task to another column'
+    return 'updated task details'
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="font-semibold text-slate-950">Activity</h2>
+      {activity.length ? (
+        <ol className="mt-4 space-y-4">
+          {activity.map((item) => (
+            <li className="border-l-2 border-slate-200 pl-3" key={item.id}>
+              <p className="text-sm text-slate-700">
+                <span className="font-medium">{item.actor_username ?? 'A former member'}</span>
+                {' '}{describe(item)}
+              </p>
+              <time className="mt-1 block text-xs text-slate-500" dateTime={item.created_at}>
+                {formatTaskTimestamp(item.created_at)}
+              </time>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">No task activity yet.</p>
       )}
     </section>
   )
