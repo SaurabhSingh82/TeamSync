@@ -1,9 +1,10 @@
 # TeamSync
 
 TeamSync is a collaborative project-management application. This repository
-contains the engineering foundation and M01-M08 modules: account management,
+contains the engineering foundation and M01-M09 modules: account management,
 workspaces, projects, task management, Kanban boards, collaboration, private
-task/comment attachments, notifications, and workspace activity.
+task/comment attachments, notifications, workspace activity, dashboard,
+calendar, and analytics.
 
 ## Repository layout
 
@@ -88,11 +89,11 @@ application role does not need `CREATEDB`:
 
 ```powershell
 Set-Location backend
-..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.tasks apps.notifications apps.core --settings=config.test_settings
+..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.tasks apps.notifications apps.dashboard apps.core --settings=config.test_settings
 ```
 
-This is the complete SQLite-compatible backend suite, including `apps.tasks`
-and `apps.notifications`.
+This is the complete SQLite-compatible backend suite, including `apps.tasks`,
+`apps.notifications`, and `apps.dashboard`.
 PostgreSQL-specific row-lock and concurrency tests run against a separate test
 database (`test_teamsync` with the default local database). The configured
 PostgreSQL role needs `CREATEDB` for the first run, or an administrator can
@@ -143,6 +144,8 @@ Run the reminder command on a schedule (for example, once each morning):
   [projects.md](docs/projects.md); task management, Kanban boards, comments,
   mentions, task activity, and private attachments are documented in
   [tasks.md](docs/tasks.md). Notifications and the workspace activity feed are
-  documented in [notifications.md](docs/notifications.md).
+  documented in [notifications.md](docs/notifications.md). Dashboard,
+  calendar, and analytics are documented in
+  [dashboard-calendar-analytics.md](docs/dashboard-calendar-analytics.md).
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

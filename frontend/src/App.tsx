@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from 'react-router'
 import { AppLayout } from './components/layout/AppLayout'
 import { RequireAuth } from './components/auth/RequireAuth'
 import { InvitationAcceptPage } from './pages/InvitationAcceptPage'
-import { DashboardPlaceholderPage } from './pages/DashboardPlaceholderPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { AnalyticsPage } from './pages/AnalyticsPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -29,7 +31,30 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
-        <Route path="dashboard" element={<DashboardPlaceholderPage />} />
+        <Route
+          path="dashboard"
+          element={
+            <RequireAuth>
+              <DashboardPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="calendar"
+          element={
+            <RequireAuth>
+              <CalendarPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="analytics"
+          element={
+            <RequireAuth>
+              <AnalyticsPage />
+            </RequireAuth>
+          }
+        />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />

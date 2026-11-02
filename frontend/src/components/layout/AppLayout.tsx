@@ -3,6 +3,8 @@ import {
   Activity,
   Bell,
   BriefcaseBusiness,
+  CalendarDays,
+  ChartNoAxesColumnIncreasing,
   CircleUserRound,
   FolderKanban,
   Home,
@@ -137,6 +139,22 @@ export function AppLayout() {
             <LayoutDashboard aria-hidden="true" size={19} />
           </NavLink>
           <NavLink
+            aria-label="Calendar"
+            className={({ isActive }) => `grid size-11 place-items-center rounded-xl transition ${isActive ? 'bg-white text-teamsync-navy' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
+            title="Calendar"
+            to="/calendar"
+          >
+            <CalendarDays aria-hidden="true" size={19} />
+          </NavLink>
+          <NavLink
+            aria-label="Analytics"
+            className={({ isActive }) => `grid size-11 place-items-center rounded-xl transition ${isActive ? 'bg-white text-teamsync-navy' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
+            title="Analytics"
+            to="/analytics"
+          >
+            <ChartNoAxesColumnIncreasing aria-hidden="true" size={19} />
+          </NavLink>
+          <NavLink
             aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
             className={({ isActive }) => `relative grid size-11 place-items-center rounded-xl transition ${isActive ? 'bg-white text-teamsync-navy' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
             title="Notifications"
@@ -186,6 +204,18 @@ export function AppLayout() {
         </Link>
         {activeWorkspaceId ? (
           <nav aria-label="Workspace navigation" className="mt-7 space-y-1">
+            <NavLink className={({ isActive }) => navClassName(isActive)} to="/dashboard">
+              <LayoutDashboard aria-hidden="true" size={17} />
+              Dashboard
+            </NavLink>
+            <NavLink className={({ isActive }) => navClassName(isActive)} to="/calendar">
+              <CalendarDays aria-hidden="true" size={17} />
+              Calendar
+            </NavLink>
+            <NavLink className={({ isActive }) => navClassName(isActive)} to="/analytics">
+              <ChartNoAxesColumnIncreasing aria-hidden="true" size={17} />
+              Analytics
+            </NavLink>
             <NavLink className={({ isActive }) => navClassName(isActive)} to={`/workspaces/${activeWorkspaceId}/projects`}>
               <FolderKanban aria-hidden="true" size={17} />
               Projects
@@ -274,6 +304,12 @@ export function AppLayout() {
             </NavLink>
             <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/dashboard">
               Dashboard
+            </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/calendar">
+              Calendar
+            </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/analytics">
+              Analytics
             </NavLink>
             <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/notifications">
               Notifications{unreadCount > 0 ? ` (${unreadCount > 99 ? '99+' : unreadCount})` : ''}
