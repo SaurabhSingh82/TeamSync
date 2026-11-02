@@ -2,11 +2,132 @@ import { apiClient } from '../lib/api/client'
 import type { ProjectPage } from '../projects/types'
 import type {
   Subtask,
+  BoardColumn,
+  ProjectBoard,
+  TaskActivity,
   Task,
   TaskComment,
   TaskFilters,
   TaskLabel,
 } from './types'
+
+export async function getProjectBoard(
+  projectId: string,
+  filters: Omit<TaskFilters, 'project_id' | 'page' | 'page_size'> = {},
+  includeArchived = false,
+) {
+  const { data } = await apiClient.get<ProjectBoard>(
+    `/projects/${projectId}/board/`,
+    { params: { ...filters, include_archived: includeArchived } },
+  )
+  return data
+}
+
+export async function createBoardColumn(
+  projectId: string,
+  input: {
+    name: string
+    status: Task['status']
+    position?: number
+    expected_board_version: number
+  },
+) {
+  const { data } = await apiClient.post<BoardColumn & { board_version: number }>(
+    `/projects/${projectId}/columns/`,
+    input,
+  )
+  return data
+}
+
+export async function updateBoardColumn(
+  columnId: string,
+  input: {
+    name?: string
+    status?: Task['status']
+    position?: number
+    expected_board_version: number
+  },
+) {
+  const { data } = await apiClient.patch<BoardColumn & { board_version: number }>(
+    `/columns/${columnId}/`,
+    input,
+  )
+  return data
+}
+
+export async function reorderBoardColumns(
+  projectId: string,
+  columnIds: string[],
+  expectedBoardVersion: number,
+) {
+  const { data } = await apiClient.post<{
+    columns: BoardColumn[]
+    board_version: number
+  }>(`/projects/${projectId}/columns/reorder/`, {
+    column_ids: columnIds,
+    expected_board_version: expectedBoardVersion,
+  })
+  return data
+}
+
+export async function deleteBoardColumn(
+  columnId: string,
+  destinationColumnId: string | null,
+  expectedBoardVersion: number,
+) {
+  const { data } = await apiClient.delete<{ board_version: number }>(
+    `/columns/${columnId}/`,
+    {
+      data: {
+        destination_column_id: destinationColumnId,
+        expected_board_version: expectedBoardVersion,
+      },
+    },
+  )
+  return data
+}
+
+export async function archiveBoardColumn(
+  columnId: string,
+  destinationColumnId: string | null,
+  expectedBoardVersion: number,
+) {
+  const { data } = await apiClient.post<BoardColumn & { board_version: number }>(
+    `/columns/${columnId}/archive/`,
+    {
+      destination_column_id: destinationColumnId,
+      expected_board_version: expectedBoardVersion,
+    },
+  )
+  return data
+}
+
+export async function restoreBoardColumn(
+  columnId: string,
+  expectedBoardVersion: number,
+) {
+  const { data } = await apiClient.post<BoardColumn & { board_version: number }>(
+    `/columns/${columnId}/restore/`,
+    { expected_board_version: expectedBoardVersion },
+  )
+  return data
+}
+
+export async function moveTask(
+  taskId: string,
+  input: {
+    column_id: string
+    position: number
+    expected_task_version: number
+    expected_board_version: number
+  },
+) {
+  const { data } = await apiClient.post<Task & { board_version: number }>(
+    `/tasks/${taskId}/move/`,
+    input,
+  )
+  return data
+}
 
 export async function listProjectTasks(filters: TaskFilters) {
   const { data } = await apiClient.get<ProjectPage<Task>>('/tasks/', {
@@ -17,6 +138,7 @@ export async function listProjectTasks(filters: TaskFilters) {
 
 export async function createTask(input: {
   project_id: string
+  board_column_id?: string
   title: string
   description: string
   priority: Task['priority']
@@ -43,7 +165,7 @@ export async function updateTask(
       Task,
       'title' | 'description' | 'priority' | 'status' | 'start_date' | 'due_date'
     >
-  >,
+  > & { expected_version: number },
 ) {
   const { data } = await apiClient.patch<Task>(`/tasks/${taskId}/`, input)
   return data
@@ -162,6 +284,13 @@ export function deleteSubtask(taskId: string, subtaskId: string) {
 export async function listTaskComments(taskId: string) {
   const { data } = await apiClient.get<ProjectPage<TaskComment>>(
     `/tasks/${taskId}/comments/`,
+  )
+  return data
+}
+
+export async function listTaskActivity(taskId: string) {
+  const { data } = await apiClient.get<ProjectPage<TaskActivity>>(
+    `/tasks/${taskId}/activity/`,
   )
   return data
 }

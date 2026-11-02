@@ -13,6 +13,9 @@ export interface TaskLabel {
 export interface Task {
   id: string
   project_id: string
+  board_column_id: string
+  position: number
+  version: number
   title: string
   description: string
   creator_id: string | null
@@ -29,6 +32,30 @@ export interface Task {
   created_at: string
   updated_at: string
   archived_at: string | null
+  completed_at: string | null
+}
+
+export interface BoardColumn {
+  id: string
+  board_id: number
+  name: string
+  status: TaskStatus
+  position: number
+  is_default: boolean
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  tasks: Task[]
+  task_count: number
+}
+
+export interface ProjectBoard {
+  id: number
+  project_id: string
+  version: number
+  columns: BoardColumn[]
+  created_at: string
+  updated_at: string
 }
 
 export interface Subtask {
@@ -54,12 +81,23 @@ export interface TaskComment {
   updated_at: string
 }
 
+export interface TaskActivity {
+  id: string
+  task_id: string
+  actor_id: string | null
+  actor_username: string | null
+  action: 'created' | 'updated' | 'moved'
+  metadata: Record<string, string | string[]>
+  created_at: string
+}
+
 export interface TaskFilters {
   project_id: string
   search?: string
   status?: TaskStatus
   priority?: TaskPriority
   assignee?: string
+  label?: string
   due_after?: string
   due_before?: string
   due_date?: string

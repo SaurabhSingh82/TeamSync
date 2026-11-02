@@ -9,9 +9,11 @@ from rest_framework.exceptions import APIException
 from apps.projects.models import ProjectMember
 from apps.projects.permissions import get_project_access
 from apps.projects.services import create_project, remove_project_member
-from apps.tasks.models import Task, TaskAssignee
+from apps.tasks.board_services import move_task
+from apps.tasks.models import BoardColumn, ProjectBoard, Task, TaskAssignee
 from apps.tasks.permissions import get_task_access
 from apps.tasks.services import add_task_assignment
+from apps.workspaces.services import Conflict
 from apps.users.models import User
 from apps.workspaces.models import WorkspaceMember
 from apps.workspaces.services import create_workspace
@@ -49,6 +51,11 @@ class TaskPostgreSQLConcurrencyTests(TransactionTestCase):
         )
         self.task = Task.objects.create(
             project=self.project,
+            board_column=BoardColumn.objects.get(
+                board__project=self.project,
+                status=Task.Status.TODO,
+                is_default=True,
+            ),
             creator=self.owner,
             title="Concurrent assignment",
         )
@@ -143,3 +150,38 @@ class TaskPostgreSQLConcurrencyTests(TransactionTestCase):
                 project_member_id=self.member_project_membership.pk,
             ).exists()
         )
+
+    def test_simultaneous_stale_task_moves_return_one_conflict(self):
+        board = ProjectBoard.objects.get(project=self.project)
+        destinations = list(
+            BoardColumn.objects.filter(board=board, is_default=True)
+            .exclude(status=Task.Status.TODO)
+            .order_by("position")
+        )
+
+        def move(destination):
+            try:
+                with transaction.atomic():
+                    actor = User.objects.get(pk=self.owner.pk)
+                    access = get_task_access(actor, self.task.pk, lock=True)
+                    moved = move_task(
+                        access=access,
+                        actor=actor,
+                        column_id=destination.pk,
+                        position=0,
+                        expected_task_version=1,
+                        expected_board_version=1,
+                    )
+                return ("moved", str(moved.board_column_id))
+            except APIException as exc:
+                return ("rejected", exc.status_code)
+
+        results = self.run_concurrently(
+            lambda: move(destinations[0]),
+            lambda: move(destinations[1]),
+        )
+
+        self.assertEqual(sum(result[0] == "moved" for result in results), 1)
+        self.assertEqual(results.count(("rejected", 409)), 1)
+        self.task.refresh_from_db()
+        self.assertIn(self.task.board_column_id, {item.pk for item in destinations})

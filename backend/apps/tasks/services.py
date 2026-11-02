@@ -1,18 +1,21 @@
 from uuid import UUID
 
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import (
+    BoardColumn,
     Label,
+    ProjectBoard,
     Subtask,
     Task,
     TaskAssignee,
     TaskCollaborator,
     TaskComment,
+    TaskActivity,
     TaskLabel,
 )
 from apps.tasks.permissions import (
@@ -58,6 +61,7 @@ def create_task(*, access, creator, values):
     assignee_ids = values.pop("assignee_ids", [])
     collaborator_ids = values.pop("collaborator_ids", [])
     label_ids = values.pop("label_ids", [])
+    requested_column_id = values.pop("board_column_id", None)
     _validate_dates(values.get("start_date"), values.get("due_date"))
 
     if not values.get("title", "").strip():
@@ -80,6 +84,32 @@ def create_task(*, access, creator, values):
         locked_project = Project.objects.select_for_update().get(pk=project.pk)
         if locked_project.archived_at is not None:
             raise Conflict("Tasks cannot be created in an archived project.")
+        board = ProjectBoard.objects.select_for_update().get(
+            project=locked_project,
+        )
+        requested_status = values.pop("status", Task.Status.TODO)
+        if requested_column_id is None:
+            column = BoardColumn.objects.get(
+                board=board,
+                status=requested_status,
+                is_default=True,
+                archived_at__isnull=True,
+            )
+        else:
+            column = BoardColumn.objects.filter(
+                board=board,
+                pk=requested_column_id,
+                archived_at__isnull=True,
+            ).first()
+            if column is None:
+                raise ValidationError(
+                    {"board_column_id": "Choose an active column on this project board."}
+                )
+            if requested_status != column.status:
+                raise ValidationError(
+                    {"status": "Task status must match the selected board column."}
+                )
+        position = Task.objects.filter(board_column=column).count()
         member_map = _project_members(
             locked_project,
             set(assignee_ids) | set(collaborator_ids),
@@ -89,9 +119,23 @@ def create_task(*, access, creator, values):
             raise ValidationError({"label_ids": "Labels must belong to this project."})
         task = Task.objects.create(
             project=locked_project,
+            board_column=column,
+            position=position,
+            status=column.status,
+            completed_at=timezone.now()
+            if column.status == Task.Status.COMPLETED
+            else None,
             creator=creator,
             **values,
         )
+        TaskActivity.objects.create(
+            task=task,
+            actor=creator,
+            action=TaskActivity.Action.CREATED,
+            metadata={"title": task.title},
+        )
+        board.version += 1
+        board.save(update_fields=("version", "updated_at"))
         TaskAssignee.objects.bulk_create(
             [
                 TaskAssignee(task=task, project_member=member_map[user_id])
@@ -110,8 +154,10 @@ def create_task(*, access, creator, values):
     return task
 
 
-def update_task(*, access, actor, values):
+def update_task(*, access, actor, values, expected_version):
     require_task_participant(access, actor)
+    if access.task.version != expected_version:
+        raise Conflict("This task changed since it was loaded. Refresh and retry.")
     values = dict(values)
     if "title" in values:
         title = values["title"].strip()
@@ -121,22 +167,88 @@ def update_task(*, access, actor, values):
     start_date = values.get("start_date", access.task.start_date)
     due_date = values.get("due_date", access.task.due_date)
     _validate_dates(start_date, due_date)
+    old_column = access.task.board_column
+    requested_status = values.pop("status", access.task.status)
+    if requested_status != access.task.status:
+        column = BoardColumn.objects.get(
+            board=access.board,
+            status=requested_status,
+            is_default=True,
+            archived_at__isnull=True,
+        )
+        access.task.board_column = column
+        access.task.position = Task.objects.filter(board_column=column).count()
+        access.task.status = column.status
+        access.task.completed_at = (
+            timezone.now()
+            if column.status == Task.Status.COMPLETED
+            else None
+        )
+    changed_fields = dict(values)
     for field, value in values.items():
         setattr(access.task, field, value)
-    if values:
-        access.task.save(update_fields=(*values.keys(), "updated_at"))
+    if values or old_column != access.task.board_column:
+        access.task.version += 1
+        access.task.save(
+            update_fields=(
+                *values.keys(),
+                "board_column",
+                "position",
+                "status",
+                "completed_at",
+                "version",
+                "updated_at",
+            )
+        )
+        _reindex_task_column(old_column)
+        if requested_status != old_column.status:
+            TaskActivity.objects.create(
+                task=access.task,
+                actor=actor,
+                action=TaskActivity.Action.MOVED,
+                metadata={
+                    "from_column_id": str(old_column.pk),
+                    "to_column_id": str(access.task.board_column_id),
+                    "from_status": old_column.status,
+                    "to_status": access.task.status,
+                },
+            )
+        else:
+            TaskActivity.objects.create(
+                task=access.task,
+                actor=actor,
+                action=TaskActivity.Action.UPDATED,
+                metadata={"fields": list(changed_fields)},
+            )
+        access.board.version += 1
+        access.board.save(update_fields=("version", "updated_at"))
     return access.task
+
+
+def _reindex_task_column(column):
+    tasks = Task.objects.filter(board_column=column).order_by("position", "id")
+    for position, task in enumerate(tasks):
+        if task.position != position:
+            Task.objects.filter(pk=task.pk).update(
+                position=position,
+                version=F("version") + 1,
+                updated_at=timezone.now(),
+            )
 
 
 def delete_task(*, access):
     require_task_manager(access)
     access.task.delete()
+    access.board.version += 1
+    access.board.save(update_fields=("version", "updated_at"))
 
 
 def set_task_archived(*, access, archived):
     require_task_manager(access)
     access.task.archived_at = timezone.now() if archived else None
     access.task.save(update_fields=("archived_at", "updated_at"))
+    access.board.version += 1
+    access.board.save(update_fields=("version", "updated_at"))
     return access.task
 
 
@@ -144,8 +256,17 @@ def duplicate_task(*, access, actor):
     require_task_participant(access, actor)
     original = access.task
     with transaction.atomic():
+        column = BoardColumn.objects.get(
+            board=access.board,
+            status=Task.Status.TODO,
+            is_default=True,
+            archived_at__isnull=True,
+        )
+        position = Task.objects.filter(board_column=column).count()
         duplicate = Task.objects.create(
             project=original.project,
+            board_column=column,
+            position=position,
             creator=actor,
             title=f"{original.title} (copy)"[:255],
             description=original.description,
@@ -154,6 +275,14 @@ def duplicate_task(*, access, actor):
             start_date=original.start_date,
             due_date=original.due_date,
         )
+        TaskActivity.objects.create(
+            task=duplicate,
+            actor=actor,
+            action=TaskActivity.Action.CREATED,
+            metadata={"title": duplicate.title, "duplicated_from": str(original.pk)},
+        )
+        access.board.version += 1
+        access.board.save(update_fields=("version", "updated_at"))
         TaskLabel.objects.bulk_create(
             [
                 TaskLabel(task=duplicate, label=label)
@@ -243,6 +372,14 @@ def list_tasks(queryset, params):
                 {"assignee": "Enter a valid user UUID."}
             ) from exc
         queryset = queryset.filter(assignees__user_id=assignee_id)
+
+    label_id = params.get("label", "").strip()
+    if label_id:
+        try:
+            label_id = UUID(label_id)
+        except ValueError as exc:
+            raise ValidationError({"label": "Enter a valid label UUID."}) from exc
+        queryset = queryset.filter(labels__pk=label_id)
 
     due_before = params.get("due_before", "").strip()
     due_after = params.get("due_after", "").strip()

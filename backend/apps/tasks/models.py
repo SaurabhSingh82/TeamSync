@@ -24,6 +24,13 @@ class Task(models.Model):
         on_delete=models.PROTECT,
         related_name="tasks",
     )
+    board_column = models.ForeignKey(
+        "BoardColumn",
+        on_delete=models.PROTECT,
+        related_name="tasks",
+    )
+    position = models.PositiveBigIntegerField(default=0)
+    version = models.PositiveIntegerField(default=1)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     creator = models.ForeignKey(
@@ -66,6 +73,7 @@ class Task(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -94,6 +102,10 @@ class Task(models.Model):
                 name="task_project_list_idx",
             ),
             models.Index(
+                fields=("board_column", "position", "id"),
+                name="task_column_order_idx",
+            ),
+            models.Index(
                 fields=("project", "priority", "updated_at"),
                 name="task_project_priority_idx",
             ),
@@ -102,6 +114,72 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class ProjectBoard(models.Model):
+    project = models.OneToOneField(
+        "projects.Project",
+        on_delete=models.CASCADE,
+        related_name="board",
+    )
+    version = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Board for {self.project}"
+
+
+class BoardColumn(models.Model):
+    class Status(models.TextChoices):
+        TODO = Task.Status.TODO, "To Do"
+        IN_PROGRESS = Task.Status.IN_PROGRESS, "In Progress"
+        REVIEW = Task.Status.REVIEW, "Review"
+        COMPLETED = Task.Status.COMPLETED, "Completed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    board = models.ForeignKey(
+        ProjectBoard,
+        on_delete=models.CASCADE,
+        related_name="columns",
+    )
+    name = models.CharField(max_length=80)
+    status = models.CharField(max_length=12, choices=Status.choices)
+    position = models.PositiveIntegerField(default=0)
+    is_default = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("board", "name"),
+                name="uniq_board_column_name",
+            ),
+            models.UniqueConstraint(
+                fields=("board", "status"),
+                condition=Q(is_default=True),
+                name="uniq_board_default_status",
+            ),
+            models.CheckConstraint(
+                condition=~Q(name=""),
+                name="board_column_name_not_empty",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=("todo", "in_progress", "review", "completed")),
+                name="valid_board_column_status",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("board", "archived_at", "position"),
+                name="board_column_order_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
 
 
 class TaskAssignee(models.Model):
@@ -202,6 +280,31 @@ class TaskComment(models.Model):
         ]
         indexes = [
             models.Index(fields=("task", "created_at"), name="task_comment_order_idx"),
+        ]
+
+
+class TaskActivity(models.Model):
+    class Action(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+        MOVED = "moved", "Moved"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="activity")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="task_activity",
+    )
+    action = models.CharField(max_length=12, choices=Action.choices)
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("task", "created_at"), name="task_activity_order_idx"),
         ]
 
 

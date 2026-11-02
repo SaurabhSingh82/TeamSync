@@ -7,7 +7,7 @@ from apps.projects.permissions import (
     ProjectAccess,
     get_project_access,
 )
-from apps.tasks.models import Task, TaskAssignee, TaskCollaborator
+from apps.tasks.models import ProjectBoard, Task, TaskAssignee, TaskCollaborator
 from apps.workspaces.models import WorkspaceMember
 
 
@@ -15,6 +15,7 @@ from apps.workspaces.models import WorkspaceMember
 class TaskAccess:
     task: Task
     project_access: ProjectAccess
+    board: ProjectBoard
 
     @property
     def can_manage(self):
@@ -35,13 +36,17 @@ def get_task_access(user, task_id, *, lock=False):
         task_ref["project_id"],
         lock=lock,
     )
+    boards = ProjectBoard.objects
+    if lock:
+        boards = boards.select_for_update()
+    board = boards.get(project_id=project_access.project.pk)
     tasks = Task.objects.select_related("project")
     if lock:
         tasks = tasks.select_for_update()
     task = tasks.filter(pk=task_id, project=project_access.project).first()
     if task is None:
         raise NotFound("Task not found.")
-    return TaskAccess(task=task, project_access=project_access)
+    return TaskAccess(task=task, project_access=project_access, board=board)
 
 
 def require_task_creator(project_access):

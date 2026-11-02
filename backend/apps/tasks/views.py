@@ -25,6 +25,7 @@ from apps.tasks.serializers import (
     TaskCreateSerializer,
     TaskLabelSerializer,
     TaskReadSerializer,
+    TaskUpdateSerializer,
     TaskWriteSerializer,
 )
 from apps.tasks.services import (
@@ -123,14 +124,17 @@ class TaskDetailView(APIView):
         return task_response(task, request)
 
     def patch(self, request, task_id):
-        serializer = TaskWriteSerializer(data=request.data, partial=True)
+        serializer = TaskUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        values = dict(serializer.validated_data)
+        expected_version = values.pop("expected_version")
         with transaction.atomic():
             access = get_task_access(request.user, task_id, lock=True)
             task = update_task(
                 access=access,
                 actor=request.user,
-                values=serializer.validated_data,
+                values=values,
+                expected_version=expected_version,
             )
         return task_response(task_queryset().get(pk=task.pk), request)
 

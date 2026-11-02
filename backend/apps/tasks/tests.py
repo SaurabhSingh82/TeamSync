@@ -7,7 +7,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.projects.models import Project, ProjectMember
 from apps.projects.services import create_project
-from apps.tasks.models import Label, Subtask, Task, TaskAssignee, TaskCollaborator
+from apps.tasks.models import (
+    BoardColumn,
+    Label,
+    Subtask,
+    Task,
+    TaskActivity,
+    TaskAssignee,
+    TaskCollaborator,
+)
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMember
 from apps.workspaces.services import create_workspace
@@ -126,6 +134,9 @@ class TaskApiTests(TestCase):
             return "/api/tasks/"
         return f"/api/tasks/{task_id}/{suffix}"
 
+    def board_url(self, suffix=""):
+        return f"/api/projects/{self.project.pk}/board/{suffix}"
+
     def create_task(self, *, user=None, **values):
         user = user or self.owner
         payload = {
@@ -180,7 +191,7 @@ class TaskApiTests(TestCase):
             self.member,
             "PATCH",
             self.task_url(unrelated["id"]),
-            {"title": "Changed"},
+            {"title": "Changed", "expected_version": unrelated["version"]},
         )
         self.assertEqual(forbidden.status_code, 403)
 
@@ -197,6 +208,7 @@ class TaskApiTests(TestCase):
                 "status": Task.Status.IN_PROGRESS,
                 "priority": Task.Priority.HIGH,
                 "title": "Updated by assignee",
+                "expected_version": assigned_task["version"],
             },
         )
         self.assertEqual(updated.status_code, 200, updated.content)
@@ -231,6 +243,7 @@ class TaskApiTests(TestCase):
         )
         self.assertEqual(task["status"], Task.Status.COMPLETED)
         self.assertEqual(task["start_date"], "2026-12-01")
+        self.assertIsNotNone(task["completed_at"])
 
     def test_task_list_search_filters_and_pagination(self):
         self.create_task(
@@ -543,6 +556,10 @@ class TaskApiTests(TestCase):
             with transaction.atomic():
                 Task.objects.create(
                     project=self.project,
+                    board_column=self.project.board.columns.get(
+                        status=Task.Status.TODO,
+                        is_default=True,
+                    ),
                     creator=self.owner,
                     title="",
                 )
@@ -550,6 +567,10 @@ class TaskApiTests(TestCase):
             with transaction.atomic():
                 Task.objects.create(
                     project=self.project,
+                    board_column=self.project.board.columns.get(
+                        status=Task.Status.TODO,
+                        is_default=True,
+                    ),
                     creator=self.owner,
                     title="Invalid dates",
                     start_date=date(2026, 12, 10),
@@ -559,7 +580,359 @@ class TaskApiTests(TestCase):
             with transaction.atomic():
                 Task.objects.create(
                     project=self.project,
+                    board_column=self.project.board.columns.get(
+                        status=Task.Status.TODO,
+                        is_default=True,
+                    ),
                     creator=self.owner,
                     title="Invalid priority",
                     priority="critical",
                 )
+
+    def test_project_board_has_default_columns_and_task_status_mapping(self):
+        response = self.request(self.owner, "GET", self.board_url())
+        self.assertEqual(response.status_code, 200, response.content)
+        columns = response.json()["columns"]
+        self.assertEqual(
+            [(column["name"], column["status"]) for column in columns],
+            [
+                ("To Do", Task.Status.TODO),
+                ("In Progress", Task.Status.IN_PROGRESS),
+                ("Review", Task.Status.REVIEW),
+                ("Completed", Task.Status.COMPLETED),
+            ],
+        )
+        self.assertTrue(all(column["is_default"] for column in columns))
+
+        task = self.create_task(status=Task.Status.COMPLETED)
+        self.assertEqual(task["board_column_id"], columns[-1]["id"])
+        self.assertIsNotNone(task["completed_at"])
+        self.assertEqual(task["version"], 1)
+
+    def test_board_column_create_update_reorder_and_role_permissions(self):
+        initial = self.request(self.manager, "GET", self.board_url()).json()
+        created = self.request(
+            self.manager,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/",
+            {
+                "name": "Ready for review",
+                "status": Task.Status.REVIEW,
+                "position": 2,
+                "expected_board_version": initial["version"],
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        column_id = created.json()["id"]
+        version = created.json()["board_version"]
+
+        renamed = self.request(
+            self.manager,
+            "PATCH",
+            f"/api/columns/{column_id}/",
+            {
+                "name": "Peer review",
+                "expected_board_version": version,
+            },
+        )
+        self.assertEqual(renamed.status_code, 200, renamed.content)
+        self.assertEqual(renamed.json()["name"], "Peer review")
+        version = renamed.json()["board_version"]
+
+        current = self.request(
+            self.manager,
+            "GET",
+            self.board_url(),
+        ).json()
+        column_ids = [column["id"] for column in current["columns"]]
+        reordered = self.request(
+            self.manager,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/reorder/",
+            {
+                "column_ids": list(reversed(column_ids)),
+                "expected_board_version": version,
+            },
+        )
+        self.assertEqual(reordered.status_code, 200, reordered.content)
+        self.assertEqual(
+            [column["id"] for column in reordered.json()["columns"]],
+            list(reversed(column_ids)),
+        )
+
+        member_cannot_create = self.request(
+            self.member,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/",
+            {
+                "name": "Member column",
+                "status": Task.Status.TODO,
+                "expected_board_version": reordered.json()["board_version"],
+            },
+        )
+        viewer_cannot_reorder = self.request(
+            self.viewer,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/reorder/",
+            {
+                "column_ids": list(reversed(column_ids)),
+                "expected_board_version": reordered.json()["board_version"],
+            },
+        )
+        workspace_viewer_cannot_reorder = self.request(
+            self.workspace_viewer,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/reorder/",
+            {
+                "column_ids": list(reversed(column_ids)),
+                "expected_board_version": reordered.json()["board_version"],
+            },
+        )
+        self.assertEqual(member_cannot_create.status_code, 403)
+        self.assertEqual(viewer_cannot_reorder.status_code, 403)
+        self.assertEqual(workspace_viewer_cannot_reorder.status_code, 403)
+
+    def test_task_move_updates_column_status_order_and_completion(self):
+        task = self.create_task(title="Move between columns")
+        board = self.request(self.owner, "GET", self.board_url()).json()
+        in_progress = next(
+            column
+            for column in board["columns"]
+            if column["status"] == Task.Status.IN_PROGRESS
+        )
+        moved = self.request(
+            self.owner,
+            "POST",
+            self.task_url(task["id"], "move/"),
+            {
+                "column_id": in_progress["id"],
+                "position": 0,
+                "expected_task_version": task["version"],
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(moved.status_code, 200, moved.content)
+        self.assertEqual(moved.json()["status"], Task.Status.IN_PROGRESS)
+        self.assertEqual(moved.json()["board_column_id"], in_progress["id"])
+        self.assertEqual(moved.json()["position"], 0)
+        self.assertIsNone(moved.json()["completed_at"])
+
+        completed = next(
+            column
+            for column in board["columns"]
+            if column["status"] == Task.Status.COMPLETED
+        )
+        completed_move = self.request(
+            self.owner,
+            "POST",
+            self.task_url(task["id"], "move/"),
+            {
+                "column_id": completed["id"],
+                "position": 0,
+                "expected_task_version": moved.json()["version"],
+                "expected_board_version": moved.json()["board_version"],
+            },
+        )
+        self.assertEqual(completed_move.status_code, 200, completed_move.content)
+        self.assertEqual(completed_move.json()["status"], Task.Status.COMPLETED)
+        self.assertIsNotNone(completed_move.json()["completed_at"])
+
+        stale = self.request(
+            self.owner,
+            "POST",
+            self.task_url(task["id"], "move/"),
+            {
+                "column_id": in_progress["id"],
+                "position": 0,
+                "expected_task_version": task["version"],
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(stale.status_code, 409)
+
+    def test_task_creation_can_target_active_column_on_same_project_board(self):
+        board = self.request(self.owner, "GET", self.board_url()).json()
+        custom_column = self.request(
+            self.owner,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/",
+            {
+                "name": "Ready for review",
+                "status": Task.Status.REVIEW,
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(custom_column.status_code, 201, custom_column.content)
+
+        created = self.request(
+            self.owner,
+            "POST",
+            self.task_url(),
+            {
+                "project_id": str(self.project.pk),
+                "board_column_id": custom_column.json()["id"],
+                "title": "Custom-column task",
+                "status": Task.Status.REVIEW,
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.json()["board_column_id"], custom_column.json()["id"])
+        self.assertEqual(created.json()["status"], Task.Status.REVIEW)
+
+        cross_project_column = BoardColumn.objects.get(
+            board__project=self.outside_project,
+            is_default=True,
+            status=Task.Status.REVIEW,
+        )
+        rejected = self.request(
+            self.owner,
+            "POST",
+            self.task_url(),
+            {
+                "project_id": str(self.project.pk),
+                "board_column_id": str(cross_project_column.pk),
+                "title": "Cross-project column task",
+                "status": Task.Status.REVIEW,
+            },
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("board_column_id", rejected.json())
+
+    def test_nonempty_custom_column_requires_valid_task_migration_to_delete(self):
+        board = self.request(self.owner, "GET", self.board_url()).json()
+        created = self.request(
+            self.owner,
+            "POST",
+            f"/api/projects/{self.project.pk}/columns/",
+            {
+                "name": "Backlog",
+                "status": Task.Status.TODO,
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        task = self.create_task(title="Backlog task")
+        board = self.request(self.owner, "GET", self.board_url()).json()
+        moved = self.request(
+            self.owner,
+            "POST",
+            self.task_url(task["id"], "move/"),
+            {
+                "column_id": created.json()["id"],
+                "position": 0,
+                "expected_task_version": task["version"],
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(moved.status_code, 200, moved.content)
+
+        delete_url = f"/api/columns/{created.json()['id']}/"
+        no_destination = self.request(
+            self.owner,
+            "DELETE",
+            delete_url,
+            {"expected_board_version": moved.json()["board_version"]},
+        )
+        self.assertEqual(no_destination.status_code, 400)
+        board = self.request(self.owner, "GET", self.board_url()).json()
+        todo = next(column for column in board["columns"] if column["is_default"] and column["status"] == Task.Status.TODO)
+        deleted = self.request(
+            self.owner,
+            "DELETE",
+            delete_url,
+            {
+                "destination_column_id": todo["id"],
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(deleted.status_code, 200, deleted.content)
+        task_model = Task.objects.get(pk=task["id"])
+        self.assertEqual(str(task_model.board_column_id), todo["id"])
+        self.assertEqual(task_model.status, Task.Status.TODO)
+
+    def test_board_combines_filters_and_rejects_cross_project_access(self):
+        label = self.request(
+            self.manager,
+            "POST",
+            f"/api/projects/{self.project.pk}/labels/",
+            {"name": "board-filter"},
+        )
+        self.assertEqual(label.status_code, 201, label.content)
+        matched = self.create_task(
+            title="Filter match",
+            status=Task.Status.REVIEW,
+            priority=Task.Priority.HIGH,
+            label_ids=[label.json()["id"]],
+        )
+        self.create_task(
+            title="Different task",
+            status=Task.Status.TODO,
+            priority=Task.Priority.LOW,
+        )
+        board = self.request(
+            self.member,
+            "GET",
+            f"{self.board_url()}?search=Filter&status=review&priority=high&label={label.json()['id']}",
+        )
+        self.assertEqual(board.status_code, 200, board.content)
+        task_ids = [
+            task["id"]
+            for column in board.json()["columns"]
+            for task in column["tasks"]
+        ]
+        self.assertEqual(task_ids, [matched["id"]])
+
+        viewer_read = self.request(self.viewer, "GET", self.board_url())
+        outsider_read = self.request(
+            self.outsider,
+            "GET",
+            f"/api/projects/{self.project.pk}/board/",
+        )
+        self.assertEqual(viewer_read.status_code, 200)
+        self.assertEqual(outsider_read.status_code, 404)
+
+    def test_task_activity_records_creation_updates_and_board_moves(self):
+        task = self.create_task(title="History task")
+        updated = self.request(
+            self.owner,
+            "PATCH",
+            self.task_url(task["id"]),
+            {
+                "title": "Updated history task",
+                "expected_version": task["version"],
+            },
+        )
+        self.assertEqual(updated.status_code, 200, updated.content)
+        board = self.request(self.owner, "GET", self.board_url()).json()
+        review = next(
+            column
+            for column in board["columns"]
+            if column["status"] == Task.Status.REVIEW
+        )
+        moved = self.request(
+            self.owner,
+            "POST",
+            self.task_url(task["id"], "move/"),
+            {
+                "column_id": review["id"],
+                "position": 0,
+                "expected_task_version": updated.json()["version"],
+                "expected_board_version": board["version"],
+            },
+        )
+        self.assertEqual(moved.status_code, 200, moved.content)
+        history = self.request(
+            self.owner,
+            "GET",
+            self.task_url(task["id"], "activity/"),
+        )
+        self.assertEqual(history.status_code, 200, history.content)
+        actions = [item["action"] for item in history.json()["results"]]
+        self.assertEqual(
+            actions,
+            [
+                TaskActivity.Action.MOVED,
+                TaskActivity.Action.UPDATED,
+                TaskActivity.Action.CREATED,
+            ],
+        )

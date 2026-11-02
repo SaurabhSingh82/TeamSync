@@ -1,8 +1,8 @@
 # TeamSync
 
 TeamSync is a collaborative project-management application. This repository
-contains the engineering foundation and M01-M04 modules: account management,
-workspaces, projects, and task management.
+contains the engineering foundation and M01-M05 modules: account management,
+workspaces, projects, task management, and Kanban boards.
 
 ## Repository layout
 
@@ -73,12 +73,13 @@ The Vite development server runs at `http://localhost:5173` and proxies `/api`
 requests to the backend at `http://127.0.0.1:8000`. Set
 `VITE_API_BASE_URL` in the root `.env` to override the API base URL.
 
-Production build and lint:
+Frontend tests, lint, and production build:
 
 ```powershell
 Set-Location frontend
 npm run build
 npm run lint
+npm test
 ```
 
 Backend API tests use an isolated in-memory SQLite database so the local
@@ -121,15 +122,15 @@ can result in a duplicate email after the claim lease expires.
 - The custom UUID-based user model is configured before the first database
   migration. M01 account fields and APIs are in the `users` app; M02 workspace
   management and invitations are in `workspaces`; M03 projects and project
-  membership are in `projects`.
+  membership are in `projects`; M04-M05 task features are in `tasks`.
 - Authentication uses HttpOnly JWT cookies, CSRF protection, rotating refresh
   tokens, and a console email backend for local reset/verification flows. See
   [authentication.md](docs/authentication.md).
 - Workspace membership and invitation behavior is documented in
   [workspaces.md](docs/workspaces.md).
 - Project lifecycle and project membership are documented in
-  [projects.md](docs/projects.md); task management is documented in
-  [tasks.md](docs/tasks.md). Kanban and later product modules are not
-  implemented yet.
+  [projects.md](docs/projects.md); task management, Kanban boards, and task
+  detail activity are documented in [tasks.md](docs/tasks.md). Later product
+  modules are not implemented yet.
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

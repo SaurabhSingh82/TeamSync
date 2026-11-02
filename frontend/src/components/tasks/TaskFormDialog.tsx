@@ -24,6 +24,7 @@ export function TaskFormDialog({
   labels,
   userId,
   canManageAssignments,
+  defaultStatus = 'todo',
   onClose,
   onSave,
 }: {
@@ -31,12 +32,13 @@ export function TaskFormDialog({
   labels: TaskLabel[]
   userId: string
   canManageAssignments: boolean
+  defaultStatus?: TaskStatus
   onClose: () => void
   onSave: (values: TaskCreateValues) => Promise<void>
 }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [status, setStatus] = useState<TaskStatus>('todo')
+  const [status, setStatus] = useState<TaskStatus>(defaultStatus)
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')

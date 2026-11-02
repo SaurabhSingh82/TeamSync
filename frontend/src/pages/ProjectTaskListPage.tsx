@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 
 import { getApiErrorMessage } from '../auth/errors'
 import { useAuth } from '../auth/useAuth'
@@ -18,11 +18,11 @@ import { createTask, listProjectLabels, listProjectTasks } from '../tasks/api'
 import { formatTaskDate } from '../tasks/format'
 import type { Task, TaskFilters, TaskPriority, TaskStatus, TaskLabel } from '../tasks/types'
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, to }: { task: Task; to: string }) {
   return (
     <Link
       className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-      to={`tasks/${task.id}`}
+      to={to}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="min-w-0 flex-1 font-semibold text-slate-950">{task.title}</h2>
@@ -47,9 +47,11 @@ function TaskCard({ task }: { task: Task }) {
   )
 }
 
-export function ProjectTaskListPage() {
+export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number }) {
   const { project } = useProjectContext()
   const { user } = useAuth()
+  const { workspaceId } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const [tasks, setTasks] = useState<Task[]>([])
   const [members, setMembers] = useState<ProjectMember[]>([])
@@ -68,7 +70,7 @@ export function ProjectTaskListPage() {
   const [error, setError] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const pageSize = 20
-  const requestKey = `${project.id}:${page}:${search}:${status}:${priority}:${assignee}:${dueAfter}:${dueBefore}:${archived}`
+  const requestKey = `${project.id}:${page}:${search}:${status}:${priority}:${assignee}:${dueAfter}:${dueBefore}:${archived}:${refreshKey}`
   const canCreate =
     project.current_user_workspace_role !== 'viewer' &&
     (canManageProject(project) || project.current_user_project_role === 'member')
@@ -122,14 +124,16 @@ export function ProjectTaskListPage() {
     return () => {
       active = false
     }
-  }, [project.id, page, search, status, priority, assignee, dueAfter, dueBefore, archived, requestKey])
+  }, [project.id, page, search, status, priority, assignee, dueAfter, dueBefore, archived, refreshKey, requestKey])
 
   async function handleCreate(values: TaskCreateValues) {
     const task = await createTask({
       project_id: project.id,
       ...values,
     })
-    navigate(`tasks/${task.id}`)
+    navigate(
+      `/workspaces/${workspaceId}/projects/${project.id}/tasks/${task.id}${location.search}`,
+    )
   }
 
   const stale = loadedKey !== requestKey
@@ -281,7 +285,7 @@ export function ProjectTaskListPage() {
                 {tasks.map((task) => (
                   <tr className="hover:bg-slate-50/80" key={task.id}>
                     <td className="max-w-sm px-5 py-4">
-                      <Link className="font-semibold text-slate-900 hover:text-teamsync-navy hover:underline" to={`tasks/${task.id}`}>
+                      <Link className="font-semibold text-slate-900 hover:text-teamsync-navy hover:underline" to={`/workspaces/${workspaceId}/projects/${project.id}/tasks/${task.id}${location.search}`}>
                         {task.title}
                       </Link>
                       <p className="mt-1 truncate text-sm text-slate-500">{task.description || 'No description'}</p>
@@ -306,7 +310,13 @@ export function ProjectTaskListPage() {
             </table>
           </div>
           <div className="mt-5 grid gap-3 md:hidden">
-            {tasks.map((task) => <TaskCard key={task.id} task={task} />)}
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                to={`/workspaces/${workspaceId}/projects/${project.id}/tasks/${task.id}${location.search}`}
+              />
+            ))}
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
             <p>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, count)} of {count}</p>
