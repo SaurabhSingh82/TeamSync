@@ -1,10 +1,11 @@
-# Task management, Kanban boards, and collaboration (M04-M06)
+# Task management, Kanban boards, collaboration, and attachments (M04-M07)
 
 M04 adds project-scoped tasks, assignments, collaborators, labels, subtasks,
 and basic comments. M05 adds per-project Kanban boards, configurable columns,
 persisted ordering, task activity, and a task-detail drawer. M06 adds threaded
 replies, validated project-member mentions, and collaboration activity events.
-Attachments and notifications are outside these modules.
+M07 adds private task and comment attachments. Notifications are outside these
+modules.
 
 ## Permissions
 
@@ -48,6 +49,38 @@ workspace; the API rejects other users. Creating, editing, deleting, replying,
 and mentioning members create task activity records without copying comment
 text into activity metadata.
 
+## Attachments (M07)
+
+Members with permission to participate in a task can upload task files and
+files attached to a comment. Project members with access to the task can list
+and download its files; uploaders, comment authors for their comment files,
+and project Managers/workspace Owners/Admins can delete them. Download and
+delete requests are checked against the task's workspace/project access on
+every request. Workspace Viewers cannot upload or delete files.
+
+File metadata (sanitized original filename, validated MIME type, size,
+SHA-256, uploader, task/comment relation, and creation time) is stored in
+PostgreSQL. File bytes use a separate private filesystem root, defaulting to
+`backend/private_attachments/`, outside Django's `/media/` serving root.
+The API never returns a storage path or a public file URL. Downloads stream
+through an authenticated endpoint with `Content-Disposition: attachment`,
+`X-Content-Type-Options: nosniff`, and private/no-store caching.
+
+The default size limit is 10 MiB and the default allowlist is PDF, PNG, JPEG,
+GIF, WebP, UTF-8 text, and CSV. Configure `ATTACHMENT_MAX_SIZE_BYTES`,
+`ATTACHMENT_ALLOWED_EXTENSIONS`, and optionally `PRIVATE_ATTACHMENT_ROOT` in
+the backend environment. The extension allowlist can restrict the built-in
+types. Extension and declared MIME type must match; PDF and image contents are
+validated, and text files must be valid UTF-8 without NUL bytes. Filenames are
+normalized and sanitized before being stored as metadata; disk names use
+random attachment IDs.
+
+Malware scanning is not currently enabled. The extension point is after
+content validation and before `TaskAttachment.file.save()` in
+`apps/tasks/attachment_services.py`; a production scanner should reject the
+upload before it is written to private storage. Configure private storage
+backups and retention separately from public media.
+
 Duplicating a task copies its title, description, priority, dates, and labels.
 The duplicate starts in `todo` and does not copy assignments, collaborators,
 subtasks, or comments.
@@ -88,6 +121,14 @@ replace `mention_ids`. All mentioned users must have active project and
 workspace membership at write time. M06 records comment/reply, edit, deletion,
 and mention events in the existing task activity feed.
 
+Task attachment list/upload uses `GET`, `POST /tasks/{task_id}/attachments/`.
+Upload uses `multipart/form-data` with a `file` and optional `comment_id`.
+`GET /tasks/{task_id}/attachments/{attachment_id}/download/` streams a
+private file after checking task access; `DELETE
+/tasks/{task_id}/attachments/{attachment_id}/` applies uploader/comment-author
+and manager permissions. Attachment list responses contain metadata and the
+authorized download endpoint URL only.
+
 ## API
 
 All routes are under `/api/` and require authentication.
@@ -127,8 +168,11 @@ The `apps.tasks` schema uses UUID task/subtask/comment/label identifiers,
 unique constraints for project label names and task association rows, check
 constraints for status, priority, title, dates, and non-empty labels/comments,
 and indexes for project task lists, due dates, assignees, subtasks, comments,
-and labels. M05 adds project board/version, board-column ordering/status, task
-column/order/version/completion fields, and task activity. The M05 migration
+labels, comment replies/mentions, and attachments. M05 adds project
+board/version, board-column ordering/status, task column/order/version/
+completion fields, and task activity. M06 adds reply, mention, edit-state, and
+collaboration activity fields. M07 adds attachment metadata and a private
+filesystem storage backend. The M05 migration
 creates default boards for existing projects and backfills existing tasks into
 their matching status columns. Task deletion cascades to its dependent task records and links;
 project deletion is protected while tasks exist.

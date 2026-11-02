@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.urls import reverse
 
 from apps.projects.serializers import ProjectMemberReadSerializer
 from apps.tasks.models import (
@@ -7,6 +8,7 @@ from apps.tasks.models import (
     ProjectBoard,
     Subtask,
     Task,
+    TaskAttachment,
     TaskActivity,
     TaskComment,
     TaskCommentMention,
@@ -349,6 +351,49 @@ class TaskCommentReadSerializer(serializers.ModelSerializer):
             "is_edited",
             "created_at",
             "updated_at",
+        )
+        read_only_fields = fields
+
+
+class TaskAttachmentUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    comment_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class TaskAttachmentReadSerializer(serializers.ModelSerializer):
+    task_id = serializers.UUIDField(read_only=True)
+    comment_id = serializers.UUIDField(read_only=True, allow_null=True)
+    uploaded_by_id = serializers.UUIDField(read_only=True, allow_null=True)
+    uploaded_by_username = serializers.CharField(
+        source="uploaded_by.username",
+        read_only=True,
+        allow_null=True,
+    )
+    download_url = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_download_url(attachment):
+        return reverse(
+            "task-attachment-download",
+            kwargs={
+                "task_id": attachment.task_id,
+                "attachment_id": attachment.pk,
+            },
+        )
+
+    class Meta:
+        model = TaskAttachment
+        fields = (
+            "id",
+            "task_id",
+            "comment_id",
+            "uploaded_by_id",
+            "uploaded_by_username",
+            "original_filename",
+            "content_type",
+            "size",
+            "created_at",
+            "download_url",
         )
         read_only_fields = fields
 

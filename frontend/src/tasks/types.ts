@@ -92,6 +92,19 @@ export interface TaskCommentMention {
   last_name: string
 }
 
+export interface TaskAttachment {
+  id: string
+  task_id: string
+  comment_id: string | null
+  uploaded_by_id: string | null
+  uploaded_by_username: string | null
+  original_filename: string
+  content_type: string
+  size: number
+  created_at: string
+  download_url: string
+}
+
 export interface TaskActivity {
   id: string
   task_id: string

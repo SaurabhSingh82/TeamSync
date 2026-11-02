@@ -162,3 +162,17 @@ FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173").rs
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+PRIVATE_ATTACHMENT_ROOT = Path(
+    env("PRIVATE_ATTACHMENT_ROOT", default=BASE_DIR / "private_attachments")
+)
+if not PRIVATE_ATTACHMENT_ROOT.is_absolute():
+    PRIVATE_ATTACHMENT_ROOT = BASE_DIR / PRIVATE_ATTACHMENT_ROOT
+PRIVATE_ATTACHMENT_ROOT = PRIVATE_ATTACHMENT_ROOT.resolve()
+ATTACHMENT_MAX_SIZE_BYTES = env.int(
+    "ATTACHMENT_MAX_SIZE_BYTES",
+    default=10 * 1024 * 1024,
+)
+ATTACHMENT_ALLOWED_EXTENSIONS = env.list(
+    "ATTACHMENT_ALLOWED_EXTENSIONS",
+    default=[".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt", ".csv"],
+)

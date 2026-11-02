@@ -5,6 +5,7 @@ import type {
   BoardColumn,
   ProjectBoard,
   TaskActivity,
+  TaskAttachment,
   Task,
   TaskComment,
   TaskFilters,
@@ -305,6 +306,44 @@ export async function listTaskActivity(taskId: string) {
   return listAllTaskPages<TaskActivity>(
     `/tasks/${taskId}/activity/`,
   )
+}
+
+export async function listTaskAttachments(taskId: string) {
+  return listAllTaskPages<TaskAttachment>(
+    `/tasks/${taskId}/attachments/`,
+  )
+}
+
+export async function uploadTaskAttachment(
+  taskId: string,
+  file: File,
+  commentId?: string,
+) {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (commentId) formData.append('comment_id', commentId)
+  const { data } = await apiClient.post<TaskAttachment>(
+    `/tasks/${taskId}/attachments/`,
+    formData,
+  )
+  return data
+}
+
+export function deleteTaskAttachment(taskId: string, attachmentId: string) {
+  return apiClient.delete(
+    `/tasks/${taskId}/attachments/${attachmentId}/`,
+  )
+}
+
+export async function downloadTaskAttachment(
+  taskId: string,
+  attachmentId: string,
+) {
+  const { data } = await apiClient.get<Blob>(
+    `/tasks/${taskId}/attachments/${attachmentId}/download/`,
+    { responseType: 'blob' },
+  )
+  return data
 }
 
 export async function createTaskComment(

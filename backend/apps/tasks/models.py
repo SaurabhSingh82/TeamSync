@@ -1,8 +1,19 @@
 import uuid
+from pathlib import Path
 
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
+
+from apps.tasks.attachment_storage import private_attachment_storage
+
+
+def task_attachment_upload_path(instance, filename):
+    extension = Path(instance.original_filename).suffix.lower()
+    return (
+        f"task-attachments/{instance.task.project_id}/"
+        f"{instance.task_id}/{instance.pk}{extension}"
+    )
 
 
 class Task(models.Model):
@@ -325,6 +336,61 @@ class TaskCommentMention(models.Model):
             models.Index(
                 fields=("project_member", "comment"),
                 name="comment_mention_member_idx",
+            ),
+        ]
+
+
+class TaskAttachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    comment = models.ForeignKey(
+        TaskComment,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="attachments",
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="task_attachments",
+    )
+    file = models.FileField(
+        storage=private_attachment_storage,
+        upload_to=task_attachment_upload_path,
+        max_length=500,
+    )
+    original_filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=127)
+    size = models.PositiveBigIntegerField()
+    sha256 = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(original_filename=""),
+                name="task_attachment_filename_not_empty",
+            ),
+            models.CheckConstraint(
+                condition=Q(size__gt=0),
+                name="task_attachment_size_positive",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("task", "created_at"),
+                name="task_attachment_order_idx",
+            ),
+            models.Index(
+                fields=("comment", "created_at"),
+                name="comment_attachment_order_idx",
             ),
         ]
 

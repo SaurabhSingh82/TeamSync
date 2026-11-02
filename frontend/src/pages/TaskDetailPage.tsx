@@ -3,6 +3,8 @@ import {
   Archive,
   Check,
   Copy,
+  Download,
+  Paperclip,
   Plus,
   RotateCcw,
   Tag,
@@ -31,12 +33,15 @@ import {
   createTaskComment,
   deleteSubtask,
   deleteTask,
+  deleteTaskAttachment,
   deleteTaskComment,
+  downloadTaskAttachment,
   duplicateTask,
   getTask,
   listProjectLabels,
   listTaskComments,
   listTaskActivity,
+  listTaskAttachments,
   listTaskSubtasks,
   removeTaskAssignee,
   removeTaskCollaborator,
@@ -45,6 +50,7 @@ import {
   updateSubtask,
   updateTask,
   updateTaskComment,
+  uploadTaskAttachment,
 } from '../tasks/api'
 import { formatTaskDate, formatTaskTimestamp } from '../tasks/format'
 import { personName, taskPriorities, taskStatuses } from '../tasks/options'
@@ -52,6 +58,7 @@ import type {
   Subtask,
   Task,
   TaskActivity,
+  TaskAttachment,
   TaskComment,
   TaskLabel,
   TaskPriority,
@@ -71,6 +78,7 @@ export function TaskDetailPage({
   const [task, setTask] = useState<Task | null>(null)
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [comments, setComments] = useState<TaskComment[]>([])
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([])
   const [activity, setActivity] = useState<TaskActivity[]>([])
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [labels, setLabels] = useState<TaskLabel[]>([])
@@ -82,12 +90,13 @@ export function TaskDetailPage({
 
   const refresh = useCallback(async () => {
     if (!taskId) return
-    const [currentTask, subtaskPage, commentPage, activityPage, projectMembers, projectLabels] =
+    const [currentTask, subtaskPage, commentPage, activityPage, attachmentPage, projectMembers, projectLabels] =
       await Promise.all([
         getTask(taskId),
         listTaskSubtasks(taskId),
         listTaskComments(taskId),
         listTaskActivity(taskId),
+        listTaskAttachments(taskId),
         listAllProjectMembers(project.id),
         listProjectLabels(project.id),
       ])
@@ -95,6 +104,7 @@ export function TaskDetailPage({
     setSubtasks(subtaskPage.results)
     setComments(commentPage.results)
     setActivity(activityPage.results)
+    setAttachments(attachmentPage.results)
     setMembers(projectMembers)
     setLabels(projectLabels)
     setError('')
@@ -113,15 +123,17 @@ export function TaskDetailPage({
       listTaskSubtasks(taskId),
       listTaskComments(taskId),
       listTaskActivity(taskId),
+      listTaskAttachments(taskId),
       listAllProjectMembers(project.id),
       listProjectLabels(project.id),
     ])
-      .then(([currentTask, subtaskPage, commentPage, activityPage, projectMembers, projectLabels]) => {
+      .then(([currentTask, subtaskPage, commentPage, activityPage, attachmentPage, projectMembers, projectLabels]) => {
         if (active) {
           setTask(currentTask)
           setSubtasks(subtaskPage.results)
           setComments(commentPage.results)
           setActivity(activityPage.results)
+          setAttachments(attachmentPage.results)
           setMembers(projectMembers)
           setLabels(projectLabels)
           setError('')
@@ -171,6 +183,21 @@ export function TaskDetailPage({
     } finally {
       setBusy(false)
     }
+  }
+
+  async function uploadAttachment(file: File, commentId?: string) {
+    if (!taskId) throw new Error('Task is unavailable.')
+    return uploadTaskAttachment(taskId, file, commentId)
+  }
+
+  async function removeAttachment(attachmentId: string) {
+    if (!taskId) throw new Error('Task is unavailable.')
+    return deleteTaskAttachment(taskId, attachmentId)
+  }
+
+  async function downloadAttachment(attachmentId: string) {
+    if (!taskId) throw new Error('Task is unavailable.')
+    return downloadTaskAttachment(taskId, attachmentId)
   }
 
   async function handleDelete() {
@@ -299,8 +326,12 @@ export function TaskDetailPage({
             comments={comments}
             currentUserId={user?.id ?? ''}
             isManager={isManager}
+            attachments={attachments.filter((attachment) => attachment.comment_id)}
             members={members}
             onError={setError}
+            onUploadAttachment={uploadAttachment}
+            onDeleteAttachment={removeAttachment}
+            onDownloadAttachment={downloadAttachment}
             onRefresh={refreshAndNotify}
             taskId={task.id}
           />
@@ -335,12 +366,17 @@ export function TaskDetailPage({
           </section>
 
           <ActivitySection activity={activity} />
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-semibold text-slate-950">Attachments</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              File attachments will be available with the M07 integration.
-            </p>
-          </section>
+          <TaskAttachmentsSection
+            attachments={attachments.filter((attachment) => !attachment.comment_id)}
+            canUpload={canEdit}
+            currentUserId={user?.id ?? ''}
+            isManager={isManager}
+            onDelete={removeAttachment}
+            onDownload={downloadAttachment}
+            onError={setError}
+            onRefresh={refreshAndNotify}
+            onUpload={uploadAttachment}
+          />
 
           <MembershipSection
             canManage={isManager}
@@ -916,28 +952,50 @@ function CommentSection({
   currentUserId,
   canComment,
   isManager,
+  attachments,
   members,
   onRefresh,
   onError,
+  onUploadAttachment,
+  onDeleteAttachment,
+  onDownloadAttachment,
 }: {
   taskId: string
   comments: TaskComment[]
   currentUserId: string
   canComment: boolean
   isManager: boolean
+  attachments: TaskAttachment[]
   members: ProjectMember[]
   onRefresh: () => Promise<void>
   onError: (message: string) => void
+  onUploadAttachment: (file: File, commentId?: string) => Promise<TaskAttachment>
+  onDeleteAttachment: (attachmentId: string) => Promise<unknown>
+  onDownloadAttachment: (attachmentId: string) => Promise<Blob>
 }) {
   async function addComment(input: {
     body: string
     mention_ids: string[]
     parent_comment_id?: string
+    files: File[]
   }): Promise<boolean> {
     onError('')
     try {
-      await createTaskComment(taskId, input)
+      const { files, ...commentInput } = input
+      const comment = await createTaskComment(taskId, commentInput)
+      let uploadError = ''
+      for (const file of files) {
+        try {
+          await onUploadAttachment(file, comment.id)
+        } catch (error) {
+          uploadError = getApiErrorMessage(error)
+          break
+        }
+      }
       await onRefresh()
+      if (uploadError) {
+        onError(`Comment posted, but an attachment could not be uploaded. ${uploadError}`)
+      }
       return true
     } catch (error) {
       onError(getApiErrorMessage(error))
@@ -965,15 +1023,19 @@ function CommentSection({
           {topLevelComments.map((comment) => (
             <li className="py-4" key={comment.id}>
               <CommentThreadItem
+                attachments={attachments.filter((item) => item.comment_id === comment.id)}
                 canComment={canComment}
                 comment={comment}
                 currentUserId={currentUserId}
                 isManager={isManager}
                 members={members}
+                onDeleteAttachment={onDeleteAttachment}
+                onDownloadAttachment={onDownloadAttachment}
                 onError={onError}
                 onRefresh={onRefresh}
                 replies={comments.filter((item) => item.parent_comment_id === comment.id)}
                 taskId={taskId}
+                onUploadAttachment={onUploadAttachment}
               />
             </li>
           ))}
@@ -989,23 +1051,31 @@ function CommentThreadItem({
   taskId,
   comment,
   replies,
+  attachments,
   currentUserId,
   canComment,
   isManager,
   members,
   onRefresh,
   onError,
+  onDeleteAttachment,
+  onDownloadAttachment,
+  onUploadAttachment,
   isReply = false,
 }: {
   taskId: string
   comment: TaskComment
   replies: TaskComment[]
+  attachments: TaskAttachment[]
   currentUserId: string
   canComment: boolean
   isManager: boolean
   members: ProjectMember[]
   onRefresh: () => Promise<void>
   onError: (message: string) => void
+  onDeleteAttachment: (attachmentId: string) => Promise<unknown>
+  onDownloadAttachment: (attachmentId: string) => Promise<Blob>
+  onUploadAttachment: (file: File, commentId?: string) => Promise<TaskAttachment>
   isReply?: boolean
 }) {
   const [editing, setEditing] = useState(false)
@@ -1071,10 +1141,14 @@ function CommentThreadItem({
           initialMentionIds={comment.mentions.map((mention) => mention.user_id)}
           members={members}
           onCancel={() => setEditing(false)}
-          onSubmit={(input) => run(() => updateTaskComment(taskId, comment.id, input))}
+          onSubmit={(input) => run(() => updateTaskComment(taskId, comment.id, {
+            body: input.body,
+            mention_ids: input.mention_ids,
+          }))}
           saving={saving}
           submitLabel="Save comment"
           title="Edit comment"
+          allowAttachments={false}
         />
       ) : (
         <>
@@ -1084,6 +1158,20 @@ function CommentThreadItem({
               Mentioned {comment.mentions.map((mention) => `@${mention.username}`).join(', ')}
             </p>
           )}
+          <AttachmentList
+            attachments={attachments}
+            canDelete={(attachment) => (
+              isManager ||
+              (canComment && (
+                attachment.uploaded_by_id === currentUserId ||
+                ownComment
+              ))
+            )}
+            onDelete={onDeleteAttachment}
+            onDownload={onDownloadAttachment}
+            onError={onError}
+            onRefresh={onRefresh}
+          />
         </>
       )}
       {!isReply && canComment && !editing && (
@@ -1097,12 +1185,27 @@ function CommentThreadItem({
       )}
       {replying && (
         <CommentComposer
+          allowAttachments
           members={members}
           onCancel={() => setReplying(false)}
-          onSubmit={(input) => run(() => createTaskComment(taskId, {
-            ...input,
-            parent_comment_id: comment.id,
-          }))}
+          onSubmit={({ files, ...input }) => run(async () => {
+            const reply = await createTaskComment(taskId, {
+              ...input,
+              parent_comment_id: comment.id,
+            })
+            let uploadError = ''
+            for (const file of files) {
+              try {
+                await onUploadAttachment(file, reply.id)
+              } catch (error) {
+                uploadError = getApiErrorMessage(error)
+                break
+              }
+            }
+            if (uploadError) {
+              onError(`Reply posted, but an attachment could not be uploaded. ${uploadError}`)
+            }
+          })}
           saving={saving}
           submitLabel="Post reply"
           title="Write a reply"
@@ -1113,16 +1216,20 @@ function CommentThreadItem({
           {replies.map((reply) => (
             <li key={reply.id}>
               <CommentThreadItem
+                attachments={attachments.filter((item) => item.comment_id === reply.id)}
                 canComment={canComment}
                 comment={reply}
                 currentUserId={currentUserId}
                 isManager={isManager}
                 isReply
                 members={members}
+                onDeleteAttachment={onDeleteAttachment}
+                onDownloadAttachment={onDownloadAttachment}
                 onError={onError}
                 onRefresh={onRefresh}
                 replies={[]}
                 taskId={taskId}
+                onUploadAttachment={onUploadAttachment}
               />
             </li>
           ))}
@@ -1137,15 +1244,21 @@ function CommentComposer({
   onSubmit,
   submitLabel,
   title,
+  allowAttachments = true,
   initialBody = '',
   initialMentionIds = [],
   onCancel,
   saving = false,
 }: {
   members: ProjectMember[]
-  onSubmit: (input: { body: string; mention_ids: string[] }) => Promise<boolean>
+  onSubmit: (input: {
+    body: string
+    mention_ids: string[]
+    files: File[]
+  }) => Promise<boolean>
   submitLabel: string
   title: string
+  allowAttachments?: boolean
   initialBody?: string
   initialMentionIds?: string[]
   onCancel?: () => void
@@ -1153,6 +1266,7 @@ function CommentComposer({
 }) {
   const [body, setBody] = useState(initialBody)
   const [mentionIds, setMentionIds] = useState(initialMentionIds)
+  const [files, setFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -1160,10 +1274,15 @@ function CommentComposer({
     if (!body.trim() || saving || submitting) return
     setSubmitting(true)
     try {
-      const saved = await onSubmit({ body: body.trim(), mention_ids: mentionIds })
+      const saved = await onSubmit({
+        body: body.trim(),
+        mention_ids: mentionIds,
+        files,
+      })
       if (saved && !onCancel) {
         setBody('')
         setMentionIds([])
+        setFiles([])
       }
     } finally {
       setSubmitting(false)
@@ -1206,6 +1325,41 @@ function CommentComposer({
           </fieldset>
         </details>
       )}
+      {allowAttachments && (
+        <div className="mt-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600 hover:text-slate-900">
+            <Paperclip aria-hidden="true" size={14} />
+            Attach files
+            <input
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv"
+              className="sr-only"
+              multiple
+              onChange={(event) => {
+                setFiles((current) => [...current, ...Array.from(event.target.files ?? [])])
+                event.target.value = ''
+              }}
+              type="file"
+            />
+          </label>
+          {files.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {files.map((file, index) => (
+                <li className="flex items-center justify-between gap-2 text-xs text-slate-500" key={`${file.name}:${index}`}>
+                  <span className="truncate">{file.name}</span>
+                  <button
+                    aria-label={`Remove ${file.name}`}
+                    className="rounded px-1 text-slate-400 hover:bg-slate-100 hover:text-red-700"
+                    onClick={() => setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden="true" size={13} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       <div className="mt-3 flex justify-end gap-2">
         {onCancel && (
           <Button disabled={saving || submitting} onClick={onCancel} type="button" variant="secondary">
@@ -1218,6 +1372,191 @@ function CommentComposer({
       </div>
     </form>
   )
+}
+
+function TaskAttachmentsSection({
+  attachments,
+  canUpload,
+  currentUserId,
+  isManager,
+  onUpload,
+  onDelete,
+  onDownload,
+  onRefresh,
+  onError,
+}: {
+  attachments: TaskAttachment[]
+  canUpload: boolean
+  currentUserId: string
+  isManager: boolean
+  onUpload: (file: File, commentId?: string) => Promise<TaskAttachment>
+  onDelete: (attachmentId: string) => Promise<unknown>
+  onDownload: (attachmentId: string) => Promise<Blob>
+  onRefresh: () => Promise<void>
+  onError: (message: string) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+
+  async function uploadFiles(files: File[]) {
+    if (!files.length) return
+    onError('')
+    setUploading(true)
+    let uploadError = ''
+    try {
+      for (const file of files) {
+        try {
+          await onUpload(file)
+        } catch (error) {
+          uploadError = getApiErrorMessage(error)
+          break
+        }
+      }
+      await onRefresh()
+      if (uploadError) onError(uploadError)
+    } catch (error) {
+      onError(getApiErrorMessage(error))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-slate-950">
+          Attachments <span className="ml-1 text-sm font-medium text-slate-400">{attachments.length}</span>
+        </h2>
+        {canUpload && (
+          <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+            <Paperclip aria-hidden="true" size={14} />
+            {uploading ? 'Uploading…' : 'Add file'}
+            <input
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv"
+              className="sr-only"
+              disabled={uploading}
+              multiple
+              onChange={(event) => {
+                void uploadFiles(Array.from(event.target.files ?? []))
+                event.target.value = ''
+              }}
+              type="file"
+            />
+          </label>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-slate-500">Files are stored privately and require project access to download.</p>
+      {attachments.length ? (
+        <AttachmentList
+          attachments={attachments}
+          canDelete={(attachment) => (
+            isManager || attachment.uploaded_by_id === currentUserId
+          )}
+          onDelete={onDelete}
+          onDownload={onDownload}
+          onError={onError}
+          onRefresh={onRefresh}
+        />
+      ) : (
+        <p className="mt-4 text-sm text-slate-500">No task attachments yet.</p>
+      )}
+    </section>
+  )
+}
+
+function AttachmentList({
+  attachments,
+  canDelete,
+  onDelete,
+  onDownload,
+  onError,
+  onRefresh,
+}: {
+  attachments: TaskAttachment[]
+  canDelete: (attachment: TaskAttachment) => boolean
+  onDelete: (attachmentId: string) => Promise<unknown>
+  onDownload: (attachmentId: string) => Promise<Blob>
+  onError: (message: string) => void
+  onRefresh: () => Promise<void>
+}) {
+  const [busyId, setBusyId] = useState('')
+
+  async function download(attachment: TaskAttachment) {
+    onError('')
+    setBusyId(attachment.id)
+    try {
+      const blob = await onDownload(attachment.id)
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = attachment.original_filename
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+    } catch (error) {
+      onError(getApiErrorMessage(error))
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function remove(attachment: TaskAttachment) {
+    onError('')
+    setBusyId(attachment.id)
+    try {
+      await onDelete(attachment.id)
+      await onRefresh()
+    } catch (error) {
+      onError(getApiErrorMessage(error))
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  if (!attachments.length) return null
+
+  return (
+    <ul className="mt-3 space-y-2">
+      {attachments.map((attachment) => (
+        <li className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-100 px-2.5 py-2" key={attachment.id}>
+          <Paperclip aria-hidden="true" className="shrink-0 text-slate-400" size={15} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-medium text-slate-700" title={attachment.original_filename}>
+              {attachment.original_filename}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {formatAttachmentSize(attachment.size)}
+              {attachment.uploaded_by_username ? ` · ${attachment.uploaded_by_username}` : ''}
+            </p>
+          </div>
+          <button
+            aria-label={`Download ${attachment.original_filename}`}
+            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+            disabled={busyId === attachment.id}
+            onClick={() => void download(attachment)}
+            type="button"
+          >
+            <Download aria-hidden="true" size={15} />
+          </button>
+          {canDelete(attachment) && (
+            <button
+              aria-label={`Delete ${attachment.original_filename}`}
+              className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+              disabled={busyId === attachment.id}
+              onClick={() => void remove(attachment)}
+              type="button"
+            >
+              <Trash2 aria-hidden="true" size={15} />
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function formatAttachmentSize(size: number) {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function ActivitySection({ activity }: { activity: TaskActivity[] }) {
