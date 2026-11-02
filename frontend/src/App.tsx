@@ -21,6 +21,8 @@ import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { WorkspaceCreatePage } from './pages/WorkspaceCreatePage'
 import { WorkspaceMembersPage } from './pages/WorkspaceMembersPage'
 import { WorkspaceSettingsPage } from './pages/WorkspaceSettingsPage'
+import { NotificationsPage } from './pages/NotificationsPage'
+import { WorkspaceActivityPage } from './pages/WorkspaceActivityPage'
 
 function App() {
   return (
@@ -34,6 +36,14 @@ function App() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="verify-email" element={<VerifyEmailPage />} />
         <Route path="invitations/accept" element={<InvitationAcceptPage />} />
+        <Route
+          path="notifications"
+          element={
+            <RequireAuth>
+              <NotificationsPage />
+            </RequireAuth>
+          }
+        />
         <Route
           path="profile"
           element={
@@ -63,6 +73,14 @@ function App() {
           element={
             <RequireAuth>
               <WorkspaceMembersPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="workspaces/:workspaceId/activity"
+          element={
+            <RequireAuth>
+              <WorkspaceActivityPage />
             </RequireAuth>
           }
         />

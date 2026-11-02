@@ -95,6 +95,6 @@ membership commit atomically.
 Projects containing tasks cannot be permanently deleted until those tasks are
 deleted. The task-to-project foreign key uses `PROTECT`, and project and
 workspace deletion APIs return a conflict rather than silently deleting task
-data. See [tasks.md](tasks.md) for task management behavior. Kanban,
-notifications are not implemented. Task and comment attachments are documented
-in [tasks.md](tasks.md).
+data. See [tasks.md](tasks.md) for task management and Kanban behavior, and
+[notifications.md](notifications.md) for notifications and workspace activity.
+Task and comment attachments are documented in [tasks.md](tasks.md).

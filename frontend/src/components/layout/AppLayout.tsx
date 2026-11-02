@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+  Activity,
+  Bell,
   BriefcaseBusiness,
   CircleUserRound,
   FolderKanban,
@@ -15,6 +17,7 @@ import { getApiErrorMessage } from '../../auth/errors'
 import { useAuth } from '../../auth/useAuth'
 import { Avatar } from '../ui/Avatar'
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector'
+import { listNotifications } from '../../notifications/api'
 
 function navClassName(isActive: boolean) {
   return `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
@@ -27,9 +30,37 @@ function navClassName(isActive: boolean) {
 export function AppLayout() {
   const { error: authError, loading, logout, user } = useAuth()
   const [logoutError, setLogoutError] = useState('')
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationError, setNotificationError] = useState('')
   const location = useLocation()
   const workspaceId = location.pathname.match(/^\/workspaces\/([^/]+)/)?.[1]
   const activeWorkspaceId = workspaceId && workspaceId !== 'new' ? workspaceId : null
+
+  useEffect(() => {
+    if (!user || loading) return
+    let active = true
+    const refreshUnreadCount = async () => {
+      try {
+        const result = await listNotifications({ unreadOnly: true, pageSize: 1 })
+        if (active) {
+          setUnreadCount(result.count)
+          setNotificationError('')
+        }
+      } catch (error) {
+        if (active) {
+          setNotificationError(
+            `Notification count could not be refreshed: ${getApiErrorMessage(error)}`,
+          )
+        }
+      }
+    }
+    void refreshUnreadCount()
+    const intervalId = window.setInterval(() => void refreshUnreadCount(), 60_000)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [loading, user])
 
   async function handleLogout() {
     setLogoutError('')
@@ -105,6 +136,19 @@ export function AppLayout() {
           >
             <LayoutDashboard aria-hidden="true" size={19} />
           </NavLink>
+          <NavLink
+            aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+            className={({ isActive }) => `relative grid size-11 place-items-center rounded-xl transition ${isActive ? 'bg-white text-teamsync-navy' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
+            title="Notifications"
+            to="/notifications"
+          >
+            <Bell aria-hidden="true" size={19} />
+            {unreadCount > 0 && (
+              <span className="absolute right-1 top-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </NavLink>
           {activeWorkspaceId && (
             <NavLink
               aria-label="Projects"
@@ -150,6 +194,10 @@ export function AppLayout() {
               <Users aria-hidden="true" size={17} />
               Members
             </NavLink>
+            <NavLink className={({ isActive }) => navClassName(isActive)} to={`/workspaces/${activeWorkspaceId}/activity`}>
+              <Activity aria-hidden="true" size={17} />
+              Activity
+            </NavLink>
             <NavLink className={({ isActive }) => navClassName(isActive)} end to={`/workspaces/${activeWorkspaceId}`}>
               <Settings aria-hidden="true" size={17} />
               Workspace settings
@@ -181,6 +229,18 @@ export function AppLayout() {
               <WorkspaceSelector selectId="workspace-selector" userId={user.id} />
             </div>
             <div className="ml-auto flex items-center gap-3">
+              <Link
+                aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                className="relative grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+                to="/notifications"
+              >
+                <Bell aria-hidden="true" size={19} />
+                {unreadCount > 0 && (
+                  <span className="absolute right-0 top-0 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
               <Avatar
                 alt={fullName || user.username}
                 className="size-9"
@@ -215,6 +275,9 @@ export function AppLayout() {
             <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/dashboard">
               Dashboard
             </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/notifications">
+              Notifications{unreadCount > 0 ? ` (${unreadCount > 99 ? '99+' : unreadCount})` : ''}
+            </NavLink>
             {activeWorkspaceId && (
               <>
               <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to={`/workspaces/${activeWorkspaceId}/projects`}>
@@ -222,6 +285,9 @@ export function AppLayout() {
               </NavLink>
               <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to={`/workspaces/${activeWorkspaceId}/members`}>
                 Members
+              </NavLink>
+              <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to={`/workspaces/${activeWorkspaceId}/activity`}>
+                Activity
               </NavLink>
               <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} end to={`/workspaces/${activeWorkspaceId}`}>
                 Settings
@@ -234,9 +300,9 @@ export function AppLayout() {
           </nav>
         </header>
         <main className="mx-auto w-full max-w-[1440px] px-5 py-8 sm:px-8 lg:py-10">
-          {(authError || logoutError) && (
+          {(authError || logoutError || notificationError) && (
             <p className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-              {logoutError || authError}
+              {logoutError || authError || notificationError}
             </p>
           )}
           <Outlet />

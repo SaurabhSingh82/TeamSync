@@ -137,18 +137,49 @@ def create_task(*, access, creator, values):
         )
         board.version += 1
         board.save(update_fields=("version", "updated_at"))
-        TaskAssignee.objects.bulk_create(
+        assignments = TaskAssignee.objects.bulk_create(
             [
                 TaskAssignee(task=task, project_member=member_map[user_id])
                 for user_id in assignee_ids
             ]
         )
-        TaskCollaborator.objects.bulk_create(
+        from apps.notifications.services import notify_task_assigned
+
+        for user_id, assignment in zip(assignee_ids, assignments):
+            member = member_map[user_id]
+            TaskActivity.objects.create(
+                task=task,
+                actor=creator,
+                action=TaskActivity.Action.ASSIGNMENT_ADDED,
+                metadata={"user_id": str(user_id), "collaborator": False},
+            )
+            notify_task_assigned(
+                task=task,
+                actor=creator,
+                recipient=member.user,
+                assignment_id=assignment.pk,
+            )
+        collaborator_links = TaskCollaborator.objects.bulk_create(
             [
                 TaskCollaborator(task=task, project_member=member_map[user_id])
                 for user_id in collaborator_ids
             ]
         )
+        for user_id, assignment in zip(collaborator_ids, collaborator_links):
+            member = member_map[user_id]
+            TaskActivity.objects.create(
+                task=task,
+                actor=creator,
+                action=TaskActivity.Action.ASSIGNMENT_ADDED,
+                metadata={"user_id": str(user_id), "collaborator": True},
+            )
+            notify_task_assigned(
+                task=task,
+                actor=creator,
+                recipient=member.user,
+                assignment_id=assignment.pk,
+                collaborator=True,
+            )
         TaskLabel.objects.bulk_create(
             [TaskLabel(task=task, label=label) for label in labels]
         )
@@ -316,12 +347,28 @@ def add_task_assignment(*, access, actor, user_id, collaborator=False):
 
     try:
         with transaction.atomic():
-            return assignment_model.objects.create(
+            assignment = assignment_model.objects.create(
                 task=access.task,
                 project_member=target_membership,
             )
     except IntegrityError as exc:
         raise Conflict("This project member is already assigned to the task.") from exc
+    TaskActivity.objects.create(
+        task=access.task,
+        actor=actor,
+        action=TaskActivity.Action.ASSIGNMENT_ADDED,
+        metadata={"user_id": str(target_membership.user_id), "collaborator": collaborator},
+    )
+    from apps.notifications.services import notify_task_assigned
+
+    notify_task_assigned(
+        task=access.task,
+        actor=actor,
+        recipient=target_membership.user,
+        assignment_id=assignment.pk,
+        collaborator=collaborator,
+    )
+    return assignment
 
 
 def require_task_member_assignment(access, actor, user_id):
@@ -337,18 +384,36 @@ def require_task_member_assignment(access, actor, user_id):
 def remove_task_assignment(*, access, actor, user_id, collaborator=False):
     model = TaskCollaborator if collaborator else TaskAssignee
     if access.can_manage:
-        deleted, _details = model.objects.filter(
+        assignment = model.objects.filter(
             task=access.task,
             project_member__user_id=user_id,
-        ).delete()
+        ).select_related("project_member__user").first()
     else:
         require_task_member_assignment(access, actor, user_id)
-        deleted, _details = model.objects.filter(
+        assignment = model.objects.filter(
             task=access.task,
             project_member=access.project_access.project_membership,
-        ).delete()
-    if not deleted:
+        ).select_related("project_member__user").first()
+    if assignment is None:
         raise NotFound("Task assignment not found.")
+    assignment_id = assignment.pk
+    recipient = assignment.project_member.user
+    assignment.delete()
+    TaskActivity.objects.create(
+        task=access.task,
+        actor=actor,
+        action=TaskActivity.Action.ASSIGNMENT_REMOVED,
+        metadata={"user_id": str(recipient.pk), "collaborator": collaborator},
+    )
+    from apps.notifications.services import notify_task_unassigned
+
+    notify_task_unassigned(
+        task=access.task,
+        actor=actor,
+        recipient=recipient,
+        assignment_id=assignment_id,
+        collaborator=collaborator,
+    )
 
 
 def list_tasks(queryset, params):
@@ -559,6 +624,21 @@ def create_task_comment(
             comment=comment,
             action=TaskActivity.Action.MENTIONED,
             mention_ids=mention_ids,
+        )
+    from apps.notifications.services import notify_task_comment, notify_task_mentions
+
+    notify_task_comment(
+        task=access.task,
+        actor=actor,
+        comment=comment,
+        mentioned_user_ids=mention_ids,
+    )
+    if mention_ids:
+        notify_task_mentions(
+            task=access.task,
+            actor=actor,
+            comment=comment,
+            recipient_ids=mention_ids,
         )
     return comment
 

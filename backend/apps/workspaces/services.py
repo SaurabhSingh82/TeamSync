@@ -163,6 +163,9 @@ def create_invitation(*, workspace, inviter, email, role):
             WorkspaceInvitationEmail.objects.create(
                 invitation=invitation,
             )
+            from apps.notifications.services import notify_workspace_invitation
+
+            notify_workspace_invitation(invitation=invitation)
     except IntegrityError as exc:
         raise Conflict("A pending invitation already exists for this email.") from exc
     return invitation
@@ -393,6 +396,9 @@ def accept_invitation(*, user, token):
         invitation.status = WorkspaceInvitation.Status.ACCEPTED
         invitation.accepted_at = timezone.now()
         invitation.save(update_fields=["status", "accepted_at"])
+        from apps.notifications.services import notify_invitation_accepted
+
+        notify_invitation_accepted(invitation=invitation, user=user)
     return membership
 
 

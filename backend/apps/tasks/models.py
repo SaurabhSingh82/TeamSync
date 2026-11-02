@@ -400,6 +400,8 @@ class TaskActivity(models.Model):
         CREATED = "created", "Created"
         UPDATED = "updated", "Updated"
         MOVED = "moved", "Moved"
+        ASSIGNMENT_ADDED = "assignment_added", "Assignment added"
+        ASSIGNMENT_REMOVED = "assignment_removed", "Assignment removed"
         COMMENTED = "commented", "Commented"
         REPLIED = "replied", "Replied"
         COMMENT_UPDATED = "comment_updated", "Comment updated"
