@@ -1,9 +1,10 @@
-# Task management and Kanban boards (M04-M05)
+# Task management, Kanban boards, and collaboration (M04-M06)
 
 M04 adds project-scoped tasks, assignments, collaborators, labels, subtasks,
 and basic comments. M05 adds per-project Kanban boards, configurable columns,
-persisted ordering, task activity, and a task-detail drawer. Attachments,
-notifications, and advanced collaboration are outside these modules.
+persisted ordering, task activity, and a task-detail drawer. M06 adds threaded
+replies, validated project-member mentions, and collaboration activity events.
+Attachments and notifications are outside these modules.
 
 ## Permissions
 
@@ -37,6 +38,16 @@ collaborators, creation/update timestamps, and an optional archive timestamp.
 Due dates cannot precede start dates. Subtasks and comments belong to a task
 and are deleted with it.
 
+Comments display their author and timestamp; edits are marked explicitly.
+Authors may edit their own comments. Authors may delete their own comments,
+and project Managers or workspace Owners/Admins may moderate any comment.
+Replies are limited to one level and can only target a top-level comment on the
+same task. Removing a parent comment preserves its replies as top-level
+comments. Mentions are selected from active members of the same project and
+workspace; the API rejects other users. Creating, editing, deleting, replying,
+and mentioning members create task activity records without copying comment
+text into activity metadata.
+
 Duplicating a task copies its title, description, priority, dates, and labels.
 The duplicate starts in `todo` and does not copy assignments, collaborators,
 subtasks, or comments.
@@ -65,6 +76,17 @@ The project Tasks view has Board and List modes. Opening a task from either
 mode displays a detail drawer over the existing view; closing it preserves the
 view, URL query state, and in-memory filters. Task activity records creation,
 detail updates, and board moves.
+
+## Collaboration (M06)
+
+Comments are returned as a paginated flat list with `parent_comment_id`,
+mention identities, author fields, timestamps, and `is_edited`. The UI groups
+replies under their parent. A deleted parent does not delete its replies.
+Comment creation accepts `body`, optional `parent_comment_id`, and optional
+`mention_ids` (user UUIDs); comment updates accept `body` and optionally
+replace `mention_ids`. All mentioned users must have active project and
+workspace membership at write time. M06 records comment/reply, edit, deletion,
+and mention events in the existing task activity feed.
 
 ## API
 

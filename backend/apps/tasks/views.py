@@ -317,7 +317,8 @@ class TaskCommentListCreateView(APIView):
         access = get_task_access(request.user, task_id)
         comments = (
             TaskComment.objects.filter(task=access.task)
-            .select_related("author")
+            .select_related("author", "parent_comment")
+            .prefetch_related("mention_links__project_member__user")
             .order_by("created_at", "id")
         )
         paginator = TaskPagination()
@@ -334,6 +335,8 @@ class TaskCommentListCreateView(APIView):
                 access=access,
                 actor=request.user,
                 body=serializer.validated_data["body"],
+                parent_comment_id=serializer.validated_data.get("parent_comment_id"),
+                mention_ids=serializer.validated_data.get("mention_ids", []),
             )
         return Response(
             TaskCommentReadSerializer(comment).data,
@@ -354,6 +357,7 @@ class TaskCommentDetailView(APIView):
                 actor=request.user,
                 comment_id=comment_id,
                 body=serializer.validated_data["body"],
+                mention_ids=serializer.validated_data.get("mention_ids"),
             )
         return Response(TaskCommentReadSerializer(comment).data)
 

@@ -15,6 +15,7 @@ from apps.tasks.models import (
     TaskActivity,
     TaskAssignee,
     TaskCollaborator,
+    TaskComment,
 )
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMember
@@ -520,6 +521,149 @@ class TaskApiTests(TestCase):
         )
 
         self.assertEqual(delete_comment.status_code, 403)
+
+    def test_comments_support_replies_mentions_edit_state_and_activity(self):
+        task = self.create_task(user=self.member, title="Collaboration task")
+        root_response = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {
+                "body": "Please review this change",
+                "mention_ids": [str(self.manager.pk)],
+            },
+        )
+        self.assertEqual(root_response.status_code, 201, root_response.content)
+        root = root_response.json()
+        self.assertFalse(root["is_edited"])
+        self.assertEqual(root["mentions"][0]["user_id"], str(self.manager.pk))
+
+        reply_response = self.request(
+            self.manager,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {
+                "body": "I will take a look",
+                "parent_comment_id": root["id"],
+                "mention_ids": [str(self.member.pk)],
+            },
+        )
+        self.assertEqual(reply_response.status_code, 201, reply_response.content)
+        self.assertEqual(reply_response.json()["parent_comment_id"], root["id"])
+        self.assertEqual(
+            reply_response.json()["mentions"][0]["user_id"],
+            str(self.member.pk),
+        )
+
+        edited = self.request(
+            self.manager,
+            "PATCH",
+            self.task_url(task["id"], f"comments/{reply_response.json()['id']}/"),
+            {"body": "I reviewed it", "mention_ids": []},
+        )
+        self.assertEqual(edited.status_code, 200, edited.content)
+        self.assertTrue(edited.json()["is_edited"])
+        self.assertEqual(edited.json()["mentions"], [])
+
+        actions = set(
+            TaskActivity.objects.filter(task_id=task["id"]).values_list(
+                "action",
+                flat=True,
+            )
+        )
+        self.assertTrue(
+            {
+                TaskActivity.Action.COMMENTED,
+                TaskActivity.Action.REPLIED,
+                TaskActivity.Action.COMMENT_UPDATED,
+                TaskActivity.Action.MENTIONED,
+            }.issubset(actions)
+        )
+
+    def test_comment_mentions_and_replies_must_belong_to_active_task_members(self):
+        task = self.create_task(user=self.member, title="Validated mentions")
+        other_task = self.create_task(user=self.member, title="Different thread")
+        workspace_only = self.create_user(
+            "workspace-only",
+            "workspace-only@example.com",
+        )
+        WorkspaceMember.objects.create(
+            workspace=self.workspace,
+            user=workspace_only,
+            role=WorkspaceMember.Role.MEMBER,
+        )
+        other_comment = self.request(
+            self.member,
+            "POST",
+            self.task_url(other_task["id"], "comments/"),
+            {"body": "A separate thread"},
+        ).json()
+
+        invalid_mention = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "Invalid mention", "mention_ids": [str(workspace_only.pk)]},
+        )
+        invalid_parent = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {
+                "body": "Cross-task reply",
+                "parent_comment_id": other_comment["id"],
+            },
+        )
+        self.assertEqual(invalid_mention.status_code, 400)
+        self.assertIn("mention_ids", invalid_mention.json())
+        self.assertEqual(invalid_parent.status_code, 400)
+        self.assertIn("parent_comment_id", invalid_parent.json())
+
+        root = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "Root comment"},
+        ).json()
+        reply = self.request(
+            self.manager,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "First-level reply", "parent_comment_id": root["id"]},
+        ).json()
+        nested_reply = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "Unsupported nested reply", "parent_comment_id": reply["id"]},
+        )
+        self.assertEqual(nested_reply.status_code, 400)
+        self.assertIn("parent_comment_id", nested_reply.json())
+
+    def test_deleting_a_root_comment_preserves_replies_as_comments(self):
+        task = self.create_task(user=self.member, title="Preserved replies")
+        root = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "Parent"},
+        ).json()
+        reply = self.request(
+            self.manager,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "Reply", "parent_comment_id": root["id"]},
+        ).json()
+
+        deleted = self.request(
+            self.manager,
+            "DELETE",
+            self.task_url(task["id"], f"comments/{root['id']}/"),
+        )
+
+        self.assertEqual(deleted.status_code, 204)
+        surviving_reply = TaskComment.objects.get(pk=reply["id"])
+        self.assertIsNone(surviving_reply.parent_comment_id)
 
     def test_project_and_workspace_deletion_are_protected_while_tasks_exist(self):
         task = self.create_task()

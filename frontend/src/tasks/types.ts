@@ -77,8 +77,19 @@ export interface TaskComment {
   author_first_name: string | null
   author_last_name: string | null
   body: string
+  parent_comment_id: string | null
+  mentions: TaskCommentMention[]
+  is_edited: boolean
   created_at: string
   updated_at: string
+}
+
+export interface TaskCommentMention {
+  project_member_id: string
+  user_id: string
+  username: string
+  first_name: string
+  last_name: string
 }
 
 export interface TaskActivity {
@@ -86,7 +97,15 @@ export interface TaskActivity {
   task_id: string
   actor_id: string | null
   actor_username: string | null
-  action: 'created' | 'updated' | 'moved'
+  action:
+    | 'created'
+    | 'updated'
+    | 'moved'
+    | 'commented'
+    | 'replied'
+    | 'comment_updated'
+    | 'comment_deleted'
+    | 'mentioned'
   metadata: Record<string, string | string[]>
   created_at: string
 }

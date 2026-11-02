@@ -9,6 +9,7 @@ from apps.tasks.models import (
     Task,
     TaskActivity,
     TaskComment,
+    TaskCommentMention,
 )
 
 
@@ -254,15 +255,54 @@ class SubtaskReadSerializer(serializers.ModelSerializer):
 
 
 class TaskCommentWriteSerializer(serializers.ModelSerializer):
+    parent_comment_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    mention_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        write_only=True,
+    )
+
     class Meta:
         model = TaskComment
-        fields = ("body",)
+        fields = ("body", "parent_comment_id", "mention_ids")
 
     def validate_body(self, value):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("Comment cannot be blank.")
         return value
+
+
+class TaskCommentMentionReadSerializer(serializers.ModelSerializer):
+    project_member_id = serializers.UUIDField(read_only=True)
+    user_id = serializers.UUIDField(source="project_member.user_id", read_only=True)
+    username = serializers.CharField(
+        source="project_member.user.username",
+        read_only=True,
+    )
+    first_name = serializers.CharField(
+        source="project_member.user.first_name",
+        read_only=True,
+    )
+    last_name = serializers.CharField(
+        source="project_member.user.last_name",
+        read_only=True,
+    )
+
+    class Meta:
+        model = TaskCommentMention
+        fields = (
+            "project_member_id",
+            "user_id",
+            "username",
+            "first_name",
+            "last_name",
+        )
+        read_only_fields = fields
 
 
 class TaskCommentReadSerializer(serializers.ModelSerializer):
@@ -282,6 +322,17 @@ class TaskCommentReadSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    parent_comment_id = serializers.UUIDField(read_only=True, allow_null=True)
+    is_edited = serializers.SerializerMethodField()
+    mentions = TaskCommentMentionReadSerializer(
+        source="mention_links",
+        many=True,
+        read_only=True,
+    )
+
+    @staticmethod
+    def get_is_edited(comment):
+        return comment.edited_at is not None
 
     class Meta:
         model = TaskComment
@@ -293,6 +344,9 @@ class TaskCommentReadSerializer(serializers.ModelSerializer):
             "author_first_name",
             "author_last_name",
             "body",
+            "parent_comment_id",
+            "mentions",
+            "is_edited",
             "created_at",
             "updated_at",
         )

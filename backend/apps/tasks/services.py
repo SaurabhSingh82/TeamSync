@@ -15,6 +15,7 @@ from apps.tasks.models import (
     TaskAssignee,
     TaskCollaborator,
     TaskComment,
+    TaskCommentMention,
     TaskActivity,
     TaskLabel,
 )
@@ -467,15 +468,102 @@ def delete_subtask(*, access, actor, subtask_id):
     subtask.delete()
 
 
-def create_task_comment(*, access, actor, body):
+def _set_comment_mentions(*, comment, project, mention_ids):
+    if len(mention_ids) != len(set(mention_ids)):
+        raise ValidationError({"mention_ids": "Do not repeat a mentioned member."})
+    members = list(
+        ProjectMember.objects.select_related("user")
+        .filter(
+            project=project,
+            user_id__in=mention_ids,
+            user__workspace_memberships__workspace=project.workspace,
+        )
+        .distinct()
+    )
+    by_user_id = {member.user_id: member for member in members}
+    if set(mention_ids) != set(by_user_id):
+        raise ValidationError(
+            {"mention_ids": "Mentions must be active members of this project and workspace."}
+        )
+    comment.mention_links.all().delete()
+    TaskCommentMention.objects.bulk_create(
+        [
+            TaskCommentMention(comment=comment, project_member=by_user_id[user_id])
+            for user_id in mention_ids
+        ]
+    )
+
+
+def _record_comment_activity(*, access, actor, comment, action, mention_ids=()):
+    metadata = {"comment_id": str(comment.pk)}
+    if comment.parent_comment_id:
+        metadata["parent_comment_id"] = str(comment.parent_comment_id)
+    if mention_ids:
+        metadata["mentioned_user_ids"] = [str(user_id) for user_id in mention_ids]
+    TaskActivity.objects.create(
+        task=access.task,
+        actor=actor,
+        action=action,
+        metadata=metadata,
+    )
+
+
+def create_task_comment(
+    *,
+    access,
+    actor,
+    body,
+    parent_comment_id=None,
+    mention_ids=(),
+):
     require_task_participant(access, actor)
     body = body.strip()
     if not body:
         raise ValidationError({"body": "Comment cannot be blank."})
-    return TaskComment.objects.create(task=access.task, author=actor, body=body)
+    parent = None
+    if parent_comment_id is not None:
+        parent = TaskComment.objects.filter(
+            task=access.task,
+            pk=parent_comment_id,
+            parent_comment__isnull=True,
+        ).first()
+        if parent is None:
+            raise ValidationError(
+                {"parent_comment_id": "Choose a top-level comment on this task."}
+            )
+    comment = TaskComment.objects.create(
+        task=access.task,
+        author=actor,
+        body=body,
+        parent_comment=parent,
+    )
+    _set_comment_mentions(
+        comment=comment,
+        project=access.project,
+        mention_ids=mention_ids,
+    )
+    _record_comment_activity(
+        access=access,
+        actor=actor,
+        comment=comment,
+        action=(
+            TaskActivity.Action.REPLIED
+            if parent is not None
+            else TaskActivity.Action.COMMENTED
+        ),
+    )
+    if mention_ids:
+        _record_comment_activity(
+            access=access,
+            actor=actor,
+            comment=comment,
+            action=TaskActivity.Action.MENTIONED,
+            mention_ids=mention_ids,
+        )
+    return comment
 
 
-def update_task_comment(*, access, actor, comment_id, body):
+def update_task_comment(*, access, actor, comment_id, body, mention_ids=None):
     require_task_participant(access, actor)
     comment = TaskComment.objects.filter(task=access.task, pk=comment_id).first()
     if comment is None:
@@ -486,7 +574,28 @@ def update_task_comment(*, access, actor, comment_id, body):
     if not body:
         raise ValidationError({"body": "Comment cannot be blank."})
     comment.body = body
-    comment.save(update_fields=("body", "updated_at"))
+    comment.edited_at = timezone.now()
+    comment.save(update_fields=("body", "edited_at", "updated_at"))
+    if mention_ids is not None:
+        _set_comment_mentions(
+            comment=comment,
+            project=access.project,
+            mention_ids=mention_ids,
+        )
+    _record_comment_activity(
+        access=access,
+        actor=actor,
+        comment=comment,
+        action=TaskActivity.Action.COMMENT_UPDATED,
+    )
+    if mention_ids:
+        _record_comment_activity(
+            access=access,
+            actor=actor,
+            comment=comment,
+            action=TaskActivity.Action.MENTIONED,
+            mention_ids=mention_ids,
+        )
     return comment
 
 
@@ -497,6 +606,12 @@ def delete_task_comment(*, access, actor, comment_id):
         raise NotFound("Task comment not found.")
     if not access.can_manage and comment.author_id != actor.pk:
         raise PermissionDenied("You can only delete your own comments.")
+    _record_comment_activity(
+        access=access,
+        actor=actor,
+        comment=comment,
+        action=TaskActivity.Action.COMMENT_DELETED,
+    )
     comment.delete()
 
 

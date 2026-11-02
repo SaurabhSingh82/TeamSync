@@ -268,6 +268,20 @@ class TaskComment(models.Model):
         related_name="task_comments",
     )
     body = models.TextField()
+    parent_comment = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="replies",
+    )
+    mentioned_members = models.ManyToManyField(
+        "projects.ProjectMember",
+        through="TaskCommentMention",
+        related_name="task_comments_mentioned_in",
+        blank=True,
+    )
+    edited_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -280,6 +294,38 @@ class TaskComment(models.Model):
         ]
         indexes = [
             models.Index(fields=("task", "created_at"), name="task_comment_order_idx"),
+            models.Index(
+                fields=("parent_comment", "created_at"),
+                name="task_comment_reply_order_idx",
+            ),
+        ]
+
+
+class TaskCommentMention(models.Model):
+    comment = models.ForeignKey(
+        TaskComment,
+        on_delete=models.CASCADE,
+        related_name="mention_links",
+    )
+    project_member = models.ForeignKey(
+        "projects.ProjectMember",
+        on_delete=models.CASCADE,
+        related_name="task_comment_mentions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("comment", "project_member"),
+                name="uniq_task_comment_mention",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("project_member", "comment"),
+                name="comment_mention_member_idx",
+            ),
         ]
 
 
@@ -288,6 +334,11 @@ class TaskActivity(models.Model):
         CREATED = "created", "Created"
         UPDATED = "updated", "Updated"
         MOVED = "moved", "Moved"
+        COMMENTED = "commented", "Commented"
+        REPLIED = "replied", "Replied"
+        COMMENT_UPDATED = "comment_updated", "Comment updated"
+        COMMENT_DELETED = "comment_deleted", "Comment deleted"
+        MENTIONED = "mentioned", "Mentioned"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="activity")
@@ -298,7 +349,7 @@ class TaskActivity(models.Model):
         blank=True,
         related_name="task_activity",
     )
-    action = models.CharField(max_length=12, choices=Action.choices)
+    action = models.CharField(max_length=20, choices=Action.choices)
     metadata = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
