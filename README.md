@@ -1,8 +1,8 @@
 # TeamSync
 
 TeamSync is a collaborative project-management application. This repository
-contains the engineering foundation only; product modules will be added in
-separate implementation checkpoints.
+contains the engineering foundation and M01-M04 modules: account management,
+workspaces, projects, and task management.
 
 ## Repository layout
 
@@ -86,9 +86,10 @@ application role does not need `CREATEDB`:
 
 ```powershell
 Set-Location backend
-..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.core --settings=config.test_settings
+..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.tasks apps.core --settings=config.test_settings
 ```
 
+This is the complete SQLite-compatible backend suite, including `apps.tasks`.
 PostgreSQL-specific row-lock and concurrency tests run against a separate test
 database (`test_teamsync` with the default local database). The configured
 PostgreSQL role needs `CREATEDB` for the first run, or an administrator can
@@ -98,6 +99,7 @@ pre-provisioned test database without dropping it:
 ```powershell
 ..\.venv\Scripts\python.exe manage.py test apps.workspaces.tests_postgres --settings=config.postgres_test_settings --keepdb
 ..\.venv\Scripts\python.exe manage.py test apps.projects.tests_postgres --settings=config.postgres_test_settings --keepdb
+..\.venv\Scripts\python.exe manage.py test apps.tasks.tests_postgres --settings=config.postgres_test_settings --keepdb
 ```
 
 Workspace invitation emails use a transactional outbox. Creation returns
@@ -126,7 +128,8 @@ can result in a duplicate email after the claim lease expires.
 - Workspace membership and invitation behavior is documented in
   [workspaces.md](docs/workspaces.md).
 - Project lifecycle and project membership are documented in
-  [projects.md](docs/projects.md). Tasks, Kanban, and later product modules
-  are not implemented yet.
+  [projects.md](docs/projects.md); task management is documented in
+  [tasks.md](docs/tasks.md). Kanban and later product modules are not
+  implemented yet.
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

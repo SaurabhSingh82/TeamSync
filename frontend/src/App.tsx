@@ -13,6 +13,8 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectMembersPage } from './pages/ProjectMembersPage'
 import { ProjectOverviewPage } from './pages/ProjectOverviewPage'
 import { ProjectSettingsPage } from './pages/ProjectSettingsPage'
+import { ProjectTaskListPage } from './pages/ProjectTaskListPage'
+import { TaskDetailPage } from './pages/TaskDetailPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
@@ -81,6 +83,8 @@ function App() {
           }
         >
           <Route index element={<ProjectOverviewPage />} />
+          <Route path="tasks" element={<ProjectTaskListPage />} />
+          <Route path="tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="members" element={<ProjectMembersPage />} />
           <Route path="settings" element={<ProjectSettingsPage />} />
         </Route>

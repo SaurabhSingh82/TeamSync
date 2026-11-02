@@ -92,7 +92,8 @@ date lookups, and project-member queries. Workspace deletion cascades to its
 projects and project memberships. Project creation and its initial Manager
 membership commit atomically.
 
-M04 will add tasks. Its task-to-project foreign key must protect projects with
-tasks from permanent deletion unless a separately approved data-retention
-policy says otherwise. M03 does not implement tasks, Kanban, comments,
-attachments, or notifications.
+Projects containing tasks cannot be permanently deleted until those tasks are
+deleted. The task-to-project foreign key uses `PROTECT`, and project and
+workspace deletion APIs return a conflict rather than silently deleting task
+data. See [tasks.md](tasks.md) for task management behavior. Kanban,
+attachments, and notifications are not implemented.
