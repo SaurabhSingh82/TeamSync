@@ -281,24 +281,43 @@ export function deleteSubtask(taskId: string, subtaskId: string) {
   return apiClient.delete(`/tasks/${taskId}/subtasks/${subtaskId}/`)
 }
 
+async function listAllTaskPages<T>(path: string): Promise<ProjectPage<T>> {
+  const results: T[] = []
+  let page = 1
+  while (true) {
+    const { data } = await apiClient.get<ProjectPage<T>>(path, {
+      params: { page, page_size: 100 },
+    })
+    results.push(...data.results)
+    if (results.length >= data.count) break
+    page += 1
+  }
+  return { count: results.length, next: null, previous: null, results }
+}
+
 export async function listTaskComments(taskId: string) {
-  const { data } = await apiClient.get<ProjectPage<TaskComment>>(
+  return listAllTaskPages<TaskComment>(
     `/tasks/${taskId}/comments/`,
   )
-  return data
 }
 
 export async function listTaskActivity(taskId: string) {
-  const { data } = await apiClient.get<ProjectPage<TaskActivity>>(
+  return listAllTaskPages<TaskActivity>(
     `/tasks/${taskId}/activity/`,
   )
-  return data
 }
 
-export async function createTaskComment(taskId: string, body: string) {
+export async function createTaskComment(
+  taskId: string,
+  input: {
+    body: string
+    parent_comment_id?: string
+    mention_ids?: string[]
+  },
+) {
   const { data } = await apiClient.post<TaskComment>(
     `/tasks/${taskId}/comments/`,
-    { body },
+    input,
   )
   return data
 }
@@ -306,11 +325,11 @@ export async function createTaskComment(taskId: string, body: string) {
 export async function updateTaskComment(
   taskId: string,
   commentId: string,
-  body: string,
+  input: { body: string; mention_ids?: string[] },
 ) {
   const { data } = await apiClient.patch<TaskComment>(
     `/tasks/${taskId}/comments/${commentId}/`,
-    { body },
+    input,
   )
   return data
 }

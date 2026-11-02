@@ -299,6 +299,7 @@ export function TaskDetailPage({
             comments={comments}
             currentUserId={user?.id ?? ''}
             isManager={isManager}
+            members={members}
             onError={setError}
             onRefresh={refreshAndNotify}
             taskId={task.id}
@@ -915,6 +916,7 @@ function CommentSection({
   currentUserId,
   canComment,
   isManager,
+  members,
   onRefresh,
   onError,
 }: {
@@ -923,122 +925,58 @@ function CommentSection({
   currentUserId: string
   canComment: boolean
   isManager: boolean
+  members: ProjectMember[]
   onRefresh: () => Promise<void>
   onError: (message: string) => void
 }) {
-  const [body, setBody] = useState('')
-  const [editId, setEditId] = useState('')
-  const [editBody, setEditBody] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function run(action: () => Promise<unknown>, clearComposer = false) {
+  async function addComment(input: {
+    body: string
+    mention_ids: string[]
+    parent_comment_id?: string
+  }): Promise<boolean> {
     onError('')
-    setSaving(true)
     try {
-      await action()
-      if (clearComposer) {
-        setBody('')
-        setEditId('')
-      }
+      await createTaskComment(taskId, input)
       await onRefresh()
+      return true
     } catch (error) {
       onError(getApiErrorMessage(error))
-    } finally {
-      setSaving(false)
+      return false
     }
   }
 
+  const topLevelComments = comments.filter((comment) => !comment.parent_comment_id)
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">Comments</h2>
+      <h2 className="text-lg font-semibold text-slate-950">
+        Comments <span className="ml-1 text-sm font-medium text-slate-400">{comments.length}</span>
+      </h2>
       {canComment && (
-        <form
-          className="mt-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (body.trim()) void run(() => createTaskComment(taskId, body), true)
-          }}
-        >
-          <label className="block text-sm font-medium text-slate-700">
-            Add a comment
-            <textarea
-              className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-              onChange={(event) => setBody(event.target.value)}
-              rows={3}
-              value={body}
-            />
-          </label>
-          <div className="mt-3 flex justify-end">
-            <Button disabled={!body.trim() || saving} type="submit">
-              {saving ? 'Posting…' : 'Post comment'}
-            </Button>
-          </div>
-        </form>
+        <CommentComposer
+          members={members}
+          onSubmit={addComment}
+          submitLabel="Post comment"
+          title="Add a comment"
+        />
       )}
-      {comments.length ? (
+      {topLevelComments.length ? (
         <ul className="mt-5 divide-y divide-slate-100">
-          {comments.map((comment) => {
-            const author = [comment.author_first_name, comment.author_last_name].filter(Boolean).join(' ') || comment.author_username || 'Former member'
-            const ownComment = comment.author_id === currentUserId
-            const canManageOwnComment = canComment && ownComment
-            return (
-              <li className="py-4" key={comment.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{author}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatTaskTimestamp(comment.created_at)}</p>
-                  </div>
-                  {(canManageOwnComment || isManager) && editId !== comment.id && (
-                    <div className="flex gap-2">
-                      {canManageOwnComment && (
-                        <button
-                          className="text-xs font-semibold text-teamsync-navy hover:underline"
-                          onClick={() => {
-                            setEditId(comment.id)
-                            setEditBody(comment.body)
-                          }}
-                          type="button"
-                        >
-                          Edit
-                        </button>
-                      )}
-                      <button
-                        className="text-xs font-semibold text-red-700 hover:underline"
-                        disabled={saving}
-                        onClick={() => void run(() => deleteTaskComment(taskId, comment.id))}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {editId === comment.id ? (
-                  <form
-                    className="mt-3"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void run(() => updateTaskComment(taskId, comment.id, editBody), true)
-                    }}
-                  >
-                    <textarea
-                      autoFocus
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                      onChange={(event) => setEditBody(event.target.value)}
-                      rows={3}
-                      value={editBody}
-                    />
-                    <div className="mt-2 flex justify-end gap-2">
-                      <Button onClick={() => setEditId('')} type="button" variant="secondary">Cancel</Button>
-                      <Button disabled={!editBody.trim() || saving} type="submit">Save comment</Button>
-                    </div>
-                  </form>
-                ) : (
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{comment.body}</p>
-                )}
-              </li>
-            )
-          })}
+          {topLevelComments.map((comment) => (
+            <li className="py-4" key={comment.id}>
+              <CommentThreadItem
+                canComment={canComment}
+                comment={comment}
+                currentUserId={currentUserId}
+                isManager={isManager}
+                members={members}
+                onError={onError}
+                onRefresh={onRefresh}
+                replies={comments.filter((item) => item.parent_comment_id === comment.id)}
+                taskId={taskId}
+              />
+            </li>
+          ))}
         </ul>
       ) : (
         <p className="mt-4 text-sm text-slate-500">No comments yet.</p>
@@ -1047,10 +985,250 @@ function CommentSection({
   )
 }
 
+function CommentThreadItem({
+  taskId,
+  comment,
+  replies,
+  currentUserId,
+  canComment,
+  isManager,
+  members,
+  onRefresh,
+  onError,
+  isReply = false,
+}: {
+  taskId: string
+  comment: TaskComment
+  replies: TaskComment[]
+  currentUserId: string
+  canComment: boolean
+  isManager: boolean
+  members: ProjectMember[]
+  onRefresh: () => Promise<void>
+  onError: (message: string) => void
+  isReply?: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [replying, setReplying] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const author = [comment.author_first_name, comment.author_last_name]
+    .filter(Boolean)
+    .join(' ') || comment.author_username || 'Former member'
+  const ownComment = comment.author_id === currentUserId
+
+  async function run(action: () => Promise<unknown>): Promise<boolean> {
+    onError('')
+    setSaving(true)
+    try {
+      await action()
+      setEditing(false)
+      setReplying(false)
+      await onRefresh()
+      return true
+    } catch (error) {
+      onError(getApiErrorMessage(error))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <article className={isReply ? 'ml-5 border-l-2 border-slate-100 pl-4 sm:ml-8' : ''}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-800">{author}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {formatTaskTimestamp(comment.created_at)}
+            {comment.is_edited && <span className="ml-1.5 text-slate-400">(edited)</span>}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-3">
+          {canComment && ownComment && !editing && (
+            <button
+              className="text-xs font-semibold text-teamsync-navy hover:underline"
+              onClick={() => setEditing(true)}
+              type="button"
+            >
+              Edit
+            </button>
+          )}
+          {((canComment && ownComment) || isManager) && !editing && (
+            <button
+              className="text-xs font-semibold text-red-700 hover:underline"
+              disabled={saving}
+              onClick={() => void run(() => deleteTaskComment(taskId, comment.id))}
+              type="button"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+      {editing ? (
+        <CommentComposer
+          initialBody={comment.body}
+          initialMentionIds={comment.mentions.map((mention) => mention.user_id)}
+          members={members}
+          onCancel={() => setEditing(false)}
+          onSubmit={(input) => run(() => updateTaskComment(taskId, comment.id, input))}
+          saving={saving}
+          submitLabel="Save comment"
+          title="Edit comment"
+        />
+      ) : (
+        <>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{comment.body}</p>
+          {comment.mentions.length > 0 && (
+            <p className="mt-2 text-xs text-slate-500">
+              Mentioned {comment.mentions.map((mention) => `@${mention.username}`).join(', ')}
+            </p>
+          )}
+        </>
+      )}
+      {!isReply && canComment && !editing && (
+        <button
+          className="mt-3 text-xs font-semibold text-slate-500 hover:text-teamsync-navy"
+          onClick={() => setReplying((current) => !current)}
+          type="button"
+        >
+          {replying ? 'Cancel reply' : `Reply${replies.length ? ` · ${replies.length}` : ''}`}
+        </button>
+      )}
+      {replying && (
+        <CommentComposer
+          members={members}
+          onCancel={() => setReplying(false)}
+          onSubmit={(input) => run(() => createTaskComment(taskId, {
+            ...input,
+            parent_comment_id: comment.id,
+          }))}
+          saving={saving}
+          submitLabel="Post reply"
+          title="Write a reply"
+        />
+      )}
+      {replies.length > 0 && (
+        <ul className="mt-3 space-y-4">
+          {replies.map((reply) => (
+            <li key={reply.id}>
+              <CommentThreadItem
+                canComment={canComment}
+                comment={reply}
+                currentUserId={currentUserId}
+                isManager={isManager}
+                isReply
+                members={members}
+                onError={onError}
+                onRefresh={onRefresh}
+                replies={[]}
+                taskId={taskId}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  )
+}
+
+function CommentComposer({
+  members,
+  onSubmit,
+  submitLabel,
+  title,
+  initialBody = '',
+  initialMentionIds = [],
+  onCancel,
+  saving = false,
+}: {
+  members: ProjectMember[]
+  onSubmit: (input: { body: string; mention_ids: string[] }) => Promise<boolean>
+  submitLabel: string
+  title: string
+  initialBody?: string
+  initialMentionIds?: string[]
+  onCancel?: () => void
+  saving?: boolean
+}) {
+  const [body, setBody] = useState(initialBody)
+  const [mentionIds, setMentionIds] = useState(initialMentionIds)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!body.trim() || saving || submitting) return
+    setSubmitting(true)
+    try {
+      const saved = await onSubmit({ body: body.trim(), mention_ids: mentionIds })
+      if (saved && !onCancel) {
+        setBody('')
+        setMentionIds([])
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form className="mt-4" onSubmit={(event) => void submit(event)}>
+      <label className="block text-sm font-medium text-slate-700">
+        {title}
+        <textarea
+          autoFocus={Boolean(onCancel)}
+          className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+          onChange={(event) => setBody(event.target.value)}
+          rows={3}
+          value={body}
+        />
+      </label>
+      {members.length > 0 && (
+        <details className="mt-2">
+          <summary className="w-fit cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+            Mention people{mentionIds.length ? ` (${mentionIds.length} selected)` : ''}
+          </summary>
+          <fieldset className="mt-2 grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-2">
+            <legend className="sr-only">Select project members to mention</legend>
+            {members.map((member) => (
+              <label className="flex items-center gap-2 text-sm text-slate-700" key={member.user_id}>
+                <input
+                  checked={mentionIds.includes(member.user_id)}
+                  onChange={(event) => {
+                    setMentionIds((current) => event.target.checked
+                      ? [...current, member.user_id]
+                      : current.filter((id) => id !== member.user_id))
+                  }}
+                  type="checkbox"
+                />
+                <span>@{member.username}</span>
+              </label>
+            ))}
+          </fieldset>
+        </details>
+      )}
+      <div className="mt-3 flex justify-end gap-2">
+        {onCancel && (
+          <Button disabled={saving || submitting} onClick={onCancel} type="button" variant="secondary">
+            Cancel
+          </Button>
+        )}
+        <Button disabled={!body.trim() || saving || submitting} type="submit">
+          {saving || submitting ? 'Saving…' : submitLabel}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function ActivitySection({ activity }: { activity: TaskActivity[] }) {
   function describe(item: TaskActivity) {
     if (item.action === 'created') return 'created this task'
     if (item.action === 'moved') return 'moved this task to another column'
+    if (item.action === 'commented') return 'added a comment'
+    if (item.action === 'replied') return 'replied to a comment'
+    if (item.action === 'comment_updated') return 'edited a comment'
+    if (item.action === 'comment_deleted') return 'deleted a comment'
+    if (item.action === 'mentioned') return 'mentioned project members'
     return 'updated task details'
   }
 
