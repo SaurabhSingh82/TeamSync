@@ -1,6 +1,9 @@
 import json
+import os
+import tempfile
 from datetime import date
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import Client, TestCase, override_settings
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -14,6 +17,7 @@ from apps.tasks.models import (
     Task,
     TaskActivity,
     TaskAssignee,
+    TaskAttachment,
     TaskCollaborator,
     TaskComment,
 )
@@ -25,6 +29,13 @@ from apps.workspaces.services import create_workspace
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class TaskApiTests(TestCase):
     def setUp(self):
+        private_storage_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(private_storage_directory.cleanup)
+        private_storage_settings = override_settings(
+            PRIVATE_ATTACHMENT_ROOT=private_storage_directory.name,
+        )
+        private_storage_settings.enable()
+        self.addCleanup(private_storage_settings.disable)
         self.owner = self.create_user("task-owner", "task-owner@example.com")
         self.manager = self.create_user("task-manager", "task-manager@example.com")
         self.member = self.create_user("task-member", "task-member@example.com")
@@ -127,6 +138,27 @@ class TaskApiTests(TestCase):
             path,
             body,
             content_type="application/json",
+            HTTP_X_CSRFTOKEN=self.csrf,
+        )
+
+    def upload_attachment(
+        self,
+        user,
+        task_id,
+        *,
+        filename,
+        content,
+        content_type,
+        comment_id=None,
+    ):
+        data = {
+            "file": SimpleUploadedFile(filename, content, content_type=content_type),
+        }
+        if comment_id is not None:
+            data["comment_id"] = str(comment_id)
+        return self.clients[user.pk].post(
+            self.task_url(task_id, "attachments/"),
+            data,
             HTTP_X_CSRFTOKEN=self.csrf,
         )
 
@@ -509,6 +541,15 @@ class TaskApiTests(TestCase):
             {"body": "A member comment"},
         )
         self.assertEqual(comment_response.status_code, 201)
+        attachment_response = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="comment.txt",
+            content=b"comment attachment",
+            content_type="text/plain",
+            comment_id=comment_response.json()["id"],
+        )
+        self.assertEqual(attachment_response.status_code, 201)
         WorkspaceMember.objects.filter(
             workspace=self.workspace,
             user=self.member,
@@ -521,6 +562,15 @@ class TaskApiTests(TestCase):
         )
 
         self.assertEqual(delete_comment.status_code, 403)
+        delete_attachment = self.request(
+            self.member,
+            "DELETE",
+            self.task_url(
+                task["id"],
+                f"attachments/{attachment_response.json()['id']}/",
+            ),
+        )
+        self.assertEqual(delete_attachment.status_code, 403)
 
     def test_comments_support_replies_mentions_edit_state_and_activity(self):
         task = self.create_task(user=self.member, title="Collaboration task")
@@ -664,6 +714,191 @@ class TaskApiTests(TestCase):
         self.assertEqual(deleted.status_code, 204)
         surviving_reply = TaskComment.objects.get(pk=reply["id"])
         self.assertIsNone(surviving_reply.parent_comment_id)
+
+    def test_task_and_comment_attachments_are_private_and_authorized(self):
+        task = self.create_task(user=self.member, title="Private attachments")
+        comment = self.request(
+            self.member,
+            "POST",
+            self.task_url(task["id"], "comments/"),
+            {"body": "See attached file"},
+        ).json()
+        task_upload = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename=r"..\secret.pdf",
+            content=b"%PDF-1.4\nprivate task data",
+            content_type="application/pdf",
+        )
+        comment_upload = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="comment.txt",
+            content=b"private comment data",
+            content_type="text/plain",
+            comment_id=comment["id"],
+        )
+        self.assertEqual(task_upload.status_code, 201, task_upload.content)
+        self.assertEqual(comment_upload.status_code, 201, comment_upload.content)
+        task_attachment = task_upload.json()
+        comment_attachment = comment_upload.json()
+        self.assertEqual(task_attachment["original_filename"], "secret.pdf")
+        self.assertIsNone(task_attachment["comment_id"])
+        self.assertEqual(comment_attachment["comment_id"], comment["id"])
+        task_attachment_model = TaskAttachment.objects.get(pk=task_attachment["id"])
+        self.assertNotIn("secret.pdf", task_attachment_model.file.name)
+        self.assertTrue(
+            os.path.commonpath(
+                [
+                    task_attachment_model.file.path,
+                    task_attachment_model.file.storage.location,
+                ]
+            )
+            == task_attachment_model.file.storage.location
+        )
+        self.assertNotIn("file", task_attachment)
+        with self.assertRaises(ValueError):
+            task_attachment_model.file.storage.url(task_attachment_model.file.name)
+
+        listing = self.request(
+            self.viewer,
+            "GET",
+            self.task_url(task["id"], "attachments/"),
+        )
+        self.assertEqual(listing.status_code, 200, listing.content)
+        self.assertEqual(listing.json()["count"], 2)
+
+        download = self.request(
+            self.viewer,
+            "GET",
+            task_attachment["download_url"],
+        )
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(download["Content-Type"], "application/pdf")
+        self.assertEqual(download["X-Content-Type-Options"], "nosniff")
+        self.assertIn("private", download["Cache-Control"])
+        self.assertEqual(
+            b"".join(download.streaming_content),
+            b"%PDF-1.4\nprivate task data",
+        )
+
+        forbidden_delete = self.request(
+            self.viewer,
+            "DELETE",
+            self.task_url(task["id"], f"attachments/{task_attachment['id']}/"),
+        )
+        self.assertEqual(forbidden_delete.status_code, 403)
+        stored_path = task_attachment_model.file.path
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            deleted = self.request(
+                self.manager,
+                "DELETE",
+                self.task_url(task["id"], f"attachments/{task_attachment['id']}/"),
+            )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(len(callbacks), 1)
+        self.assertFalse(os.path.exists(stored_path))
+        comment_deleted = self.request(
+            self.member,
+            "DELETE",
+            self.task_url(
+                task["id"],
+                f"attachments/{comment_attachment['id']}/",
+            ),
+        )
+        self.assertEqual(comment_deleted.status_code, 204)
+        self.assertFalse(
+            TaskAttachment.objects.filter(pk=task_attachment["id"]).exists()
+        )
+
+        outside_download = self.request(
+            self.outsider,
+            "GET",
+            comment_attachment["download_url"],
+        )
+        self.assertEqual(outside_download.status_code, 404)
+
+    def test_attachment_upload_validates_extension_mime_size_and_comment_scope(self):
+        task = self.create_task(user=self.member, title="Attachment validation")
+        other_task = self.create_task(user=self.member, title="Another attachment task")
+        other_comment = self.request(
+            self.member,
+            "POST",
+            self.task_url(other_task["id"], "comments/"),
+            {"body": "Other task comment"},
+        ).json()
+        invalid_extension = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="script.exe",
+            content=b"not an executable",
+            content_type="application/octet-stream",
+        )
+        invalid_mime = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="document.pdf",
+            content=b"%PDF-1.4\ncontent",
+            content_type="text/plain",
+        )
+        invalid_signature = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="fake.pdf",
+            content=b"not a pdf",
+            content_type="application/pdf",
+        )
+        cross_task_comment = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="comment.txt",
+            content=b"cross-task",
+            content_type="text/plain",
+            comment_id=other_comment["id"],
+        )
+        too_large = None
+        with override_settings(ATTACHMENT_MAX_SIZE_BYTES=4):
+            too_large = self.upload_attachment(
+                self.member,
+                task["id"],
+                filename="large.txt",
+                content=b"12345",
+                content_type="text/plain",
+            )
+        self.assertEqual(invalid_extension.status_code, 400)
+        self.assertEqual(invalid_mime.status_code, 400)
+        self.assertEqual(invalid_signature.status_code, 400)
+        self.assertEqual(cross_task_comment.status_code, 400)
+        self.assertEqual(too_large.status_code, 400)
+        self.assertEqual(
+            TaskAttachment.objects.filter(task_id=task["id"]).count(),
+            0,
+        )
+
+    def test_only_task_participants_can_upload_and_unrelated_users_cannot_read(self):
+        task = self.create_task(user=self.member, title="Participant-only upload")
+        denied_upload = self.upload_attachment(
+            self.viewer,
+            task["id"],
+            filename="allowed.txt",
+            content=b"not allowed",
+            content_type="text/plain",
+        )
+        attachment = self.upload_attachment(
+            self.member,
+            task["id"],
+            filename="allowed.txt",
+            content=b"allowed",
+            content_type="text/plain",
+        )
+        denied_read = self.request(
+            self.outsider,
+            "GET",
+            self.task_url(task["id"], "attachments/"),
+        )
+        self.assertEqual(denied_upload.status_code, 403)
+        self.assertEqual(attachment.status_code, 201, attachment.content)
+        self.assertEqual(denied_read.status_code, 404)
 
     def test_project_and_workspace_deletion_are_protected_while_tasks_exist(self):
         task = self.create_task()

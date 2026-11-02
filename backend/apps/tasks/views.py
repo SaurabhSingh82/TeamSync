@@ -1,12 +1,21 @@
+from django.http import FileResponse
 from django.db import transaction
 from django.db.models import Count, Q
+from django.utils.http import content_disposition_header
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.projects.permissions import get_project_access
+from apps.tasks.attachment_services import (
+    create_task_attachment,
+    delete_task_attachment,
+    get_task_attachment,
+    list_task_attachments,
+)
 from apps.tasks.models import Label, Subtask, Task, TaskComment
 from apps.tasks.pagination import TaskPagination
 from apps.tasks.permissions import (
@@ -20,6 +29,8 @@ from apps.tasks.serializers import (
     SubtaskReadSerializer,
     SubtaskWriteSerializer,
     TaskAssignmentSerializer,
+    TaskAttachmentReadSerializer,
+    TaskAttachmentUploadSerializer,
     TaskCommentReadSerializer,
     TaskCommentWriteSerializer,
     TaskCreateSerializer,
@@ -75,6 +86,75 @@ def task_response(task, request, *, status_code=status.HTTP_200_OK):
         TaskReadSerializer(task, context={"request": request}).data,
         status=status_code,
     )
+
+
+class TaskAttachmentListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request, task_id):
+        access = get_task_access(request.user, task_id)
+        attachments = list_task_attachments(access=access)
+        paginator = TaskPagination()
+        page = paginator.paginate_queryset(attachments, request, view=self)
+        serializer = TaskAttachmentReadSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def post(self, request, task_id):
+        serializer = TaskAttachmentUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            access = get_task_access(request.user, task_id, lock=True)
+            attachment = create_task_attachment(
+                access=access,
+                actor=request.user,
+                upload=serializer.validated_data["file"],
+                comment_id=serializer.validated_data.get("comment_id"),
+            )
+        return Response(
+            TaskAttachmentReadSerializer(attachment).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TaskAttachmentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, task_id, attachment_id):
+        with transaction.atomic():
+            access = get_task_access(request.user, task_id, lock=True)
+            delete_task_attachment(
+                access=access,
+                actor=request.user,
+                attachment_id=attachment_id,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TaskAttachmentDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, task_id, attachment_id):
+        access = get_task_access(request.user, task_id)
+        attachment = get_task_attachment(
+            access=access,
+            attachment_id=attachment_id,
+        )
+        try:
+            file_handle = attachment.file.open("rb")
+        except FileNotFoundError as exc:
+            raise NotFound("Attachment file not found.") from exc
+        response = FileResponse(
+            file_handle,
+            content_type=attachment.content_type,
+        )
+        response["Content-Disposition"] = content_disposition_header(
+            True,
+            attachment.original_filename,
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "private, no-store"
+        return response
 
 
 class TaskListCreateView(APIView):

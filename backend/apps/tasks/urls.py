@@ -14,6 +14,9 @@ from apps.tasks.views import (
     ProjectLabelListCreateView,
     TaskActionView,
     TaskAssignmentView,
+    TaskAttachmentDetailView,
+    TaskAttachmentDownloadView,
+    TaskAttachmentListCreateView,
     TaskCommentDetailView,
     TaskCommentListCreateView,
     TaskDetailView,
@@ -67,6 +70,21 @@ urlpatterns = [
     ),
     path("tasks/", TaskListCreateView.as_view(), name="task-list-create"),
     path("tasks/<uuid:task_id>/", TaskDetailView.as_view(), name="task-detail"),
+    path(
+        "tasks/<uuid:task_id>/attachments/",
+        TaskAttachmentListCreateView.as_view(),
+        name="task-attachments",
+    ),
+    path(
+        "tasks/<uuid:task_id>/attachments/<uuid:attachment_id>/download/",
+        TaskAttachmentDownloadView.as_view(),
+        name="task-attachment-download",
+    ),
+    path(
+        "tasks/<uuid:task_id>/attachments/<uuid:attachment_id>/",
+        TaskAttachmentDetailView.as_view(),
+        name="task-attachment-detail",
+    ),
     path(
         "tasks/<uuid:task_id>/assignees/",
         TaskAssignmentView.as_view(collaborator=False),
