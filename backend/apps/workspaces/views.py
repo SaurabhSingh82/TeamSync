@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -20,6 +21,7 @@ from apps.workspaces.serializers import (
     WorkspaceWriteSerializer,
 )
 from apps.workspaces.services import (
+    Conflict,
     accept_invitation,
     create_invitation,
     create_workspace,
@@ -112,7 +114,12 @@ class WorkspaceDetailView(APIView):
                 lock=True,
             )
             require_role(membership, (WorkspaceMember.Role.OWNER,))
-            workspace.delete()
+            try:
+                workspace.delete()
+            except ProtectedError as exc:
+                raise Conflict(
+                    "This workspace contains projects with tasks and cannot be deleted."
+                ) from exc
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

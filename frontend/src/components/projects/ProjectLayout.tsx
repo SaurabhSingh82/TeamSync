@@ -76,6 +76,7 @@ export function ProjectLayout() {
 
   const tabs = [
     { to: `/workspaces/${workspaceId}/projects/${project.id}`, label: 'Overview', end: true },
+    { to: `/workspaces/${workspaceId}/projects/${project.id}/tasks`, label: 'Tasks', end: false },
     { to: `/workspaces/${workspaceId}/projects/${project.id}/members`, label: 'Members', end: false },
     { to: `/workspaces/${workspaceId}/projects/${project.id}/settings`, label: 'Settings', end: false },
   ]

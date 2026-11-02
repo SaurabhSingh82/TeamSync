@@ -1,4 +1,5 @@
 from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -217,4 +218,9 @@ def delete_project(*, access):
         )
     if access.project.archived_at is None:
         raise Conflict("Archive this project before permanently deleting it.")
-    access.project.delete()
+    try:
+        access.project.delete()
+    except ProtectedError as exc:
+        raise Conflict(
+            "This project still contains tasks and cannot be permanently deleted."
+        ) from exc
