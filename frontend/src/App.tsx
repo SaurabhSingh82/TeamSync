@@ -25,6 +25,7 @@ import { WorkspaceMembersPage } from './pages/WorkspaceMembersPage'
 import { WorkspaceSettingsPage } from './pages/WorkspaceSettingsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { WorkspaceActivityPage } from './pages/WorkspaceActivityPage'
+import { SearchPage } from './pages/SearchPage'
 
 function App() {
   return (
@@ -52,6 +53,14 @@ function App() {
           element={
             <RequireAuth>
               <AnalyticsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="search"
+          element={
+            <RequireAuth>
+              <SearchPage />
             </RequireAuth>
           }
         />

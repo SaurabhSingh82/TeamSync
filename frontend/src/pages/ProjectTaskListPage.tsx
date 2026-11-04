@@ -63,6 +63,9 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
   const [status, setStatus] = useState<TaskStatus | ''>('')
   const [priority, setPriority] = useState<TaskPriority | ''>('')
   const [assignee, setAssignee] = useState('')
+  const [creator, setCreator] = useState('')
+  const [creatorInput, setCreatorInput] = useState('')
+  const [label, setLabel] = useState('')
   const [dueAfter, setDueAfter] = useState('')
   const [dueBefore, setDueBefore] = useState('')
   const [archived, setArchived] = useState<'false' | 'true' | 'all'>('false')
@@ -70,7 +73,7 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
   const [error, setError] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const pageSize = 20
-  const requestKey = `${project.id}:${page}:${search}:${status}:${priority}:${assignee}:${dueAfter}:${dueBefore}:${archived}:${refreshKey}`
+  const requestKey = `${project.id}:${page}:${search}:${status}:${priority}:${assignee}:${creator}:${label}:${dueAfter}:${dueBefore}:${archived}:${refreshKey}`
   const canCreate =
     project.current_user_workspace_role !== 'viewer' &&
     (canManageProject(project) || project.current_user_project_role === 'member')
@@ -84,6 +87,14 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
   }, [searchInput])
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCreator(creatorInput.trim())
+      setPage(1)
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [creatorInput])
+
+  useEffect(() => {
     let active = true
     const filters: TaskFilters = {
       project_id: project.id,
@@ -95,6 +106,8 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
     if (status) filters.status = status
     if (priority) filters.priority = priority
     if (assignee) filters.assignee = assignee
+    if (creator) filters.creator = creator
+    if (label) filters.label = label
     if (dueAfter) filters.due_after = dueAfter
     if (dueBefore) filters.due_before = dueBefore
 
@@ -124,7 +137,7 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
     return () => {
       active = false
     }
-  }, [project.id, page, search, status, priority, assignee, dueAfter, dueBefore, archived, refreshKey, requestKey])
+  }, [project.id, page, search, status, priority, assignee, creator, label, dueAfter, dueBefore, archived, refreshKey, requestKey])
 
   async function handleCreate(values: TaskCreateValues) {
     const task = await createTask({
@@ -204,6 +217,30 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
               {[member.first_name, member.last_name].filter(Boolean).join(' ') || member.username}
             </option>
           ))}
+        </FilterSelect>
+        <label className="text-xs font-medium text-slate-500">
+          Creator
+          <input
+            aria-label="Filter by creator"
+            className="mt-1 block w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm text-slate-800"
+            onChange={(event) => {
+              setCreatorInput(event.target.value)
+            }}
+            placeholder="Name or ID"
+            type="search"
+            value={creatorInput}
+          />
+        </label>
+        <FilterSelect
+          ariaLabel="Filter by label"
+          onChange={(value) => {
+            setLabel(value)
+            setPage(1)
+          }}
+          value={label}
+        >
+          <option value="">All labels</option>
+          {labels.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </FilterSelect>
         <FilterSelect
           ariaLabel="Filter archived tasks"

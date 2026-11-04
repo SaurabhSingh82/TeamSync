@@ -10,6 +10,7 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
+  Search,
   Settings,
   Users,
 } from 'lucide-react'
@@ -155,6 +156,14 @@ export function AppLayout() {
             <ChartNoAxesColumnIncreasing aria-hidden="true" size={19} />
           </NavLink>
           <NavLink
+            aria-label="Search"
+            className={({ isActive }) => `grid size-11 place-items-center rounded-xl transition ${isActive ? 'bg-white text-teamsync-navy' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
+            title="Search"
+            to="/search"
+          >
+            <Search aria-hidden="true" size={19} />
+          </NavLink>
+          <NavLink
             aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
             className={({ isActive }) => `relative grid size-11 place-items-center rounded-xl transition ${isActive ? 'bg-white text-teamsync-navy' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
             title="Notifications"
@@ -215,6 +224,10 @@ export function AppLayout() {
             <NavLink className={({ isActive }) => navClassName(isActive)} to="/analytics">
               <ChartNoAxesColumnIncreasing aria-hidden="true" size={17} />
               Analytics
+            </NavLink>
+            <NavLink className={({ isActive }) => navClassName(isActive)} to="/search">
+              <Search aria-hidden="true" size={17} />
+              Search
             </NavLink>
             <NavLink className={({ isActive }) => navClassName(isActive)} to={`/workspaces/${activeWorkspaceId}/projects`}>
               <FolderKanban aria-hidden="true" size={17} />
@@ -310,6 +323,9 @@ export function AppLayout() {
             </NavLink>
             <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/analytics">
               Analytics
+            </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/search">
+              Search
             </NavLink>
             <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/notifications">
               Notifications{unreadCount > 0 ? ` (${unreadCount > 99 ? '99+' : unreadCount})` : ''}
