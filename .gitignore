@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.docker.example
 
 # Python
 .venv/
@@ -11,6 +12,8 @@ __pycache__/
 *.sqlite3
 backend/media/
 /backend/private_attachments/
+/backend/staticfiles/
+/backend/.test-e2e.sqlite3*
 .pytest_cache/
 .coverage
 htmlcov/
@@ -22,6 +25,8 @@ dist/
 dist-ssr/
 *.local
 npm-debug.log*
+/frontend/playwright-report/
+/frontend/test-results/
 
 # Editor and operating-system files
 .vscode/*

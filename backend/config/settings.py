@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,6 +21,31 @@ env.read_env(ENV_FILE)
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
+SECURE_PROXY_SSL_HEADER = None
+proxy_ssl_header = env("SECURE_PROXY_SSL_HEADER", default="").strip()
+if proxy_ssl_header:
+    header_parts = proxy_ssl_header.split(",", maxsplit=1)
+    if len(header_parts) != 2 or not header_parts[0].startswith("HTTP_"):
+        raise ImproperlyConfigured(
+            "SECURE_PROXY_SSL_HEADER must contain an HTTP header name and value."
+        )
+    SECURE_PROXY_SSL_HEADER = (header_parts[0], header_parts[1])
+
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int(
+    "SECURE_HSTS_SECONDS",
+    default=0 if DEBUG else 31_536_000,
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=not DEBUG,
+)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+X_FRAME_OPTIONS = "DENY"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -43,6 +69,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "apps.core.middleware.RequestContextMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -103,6 +131,13 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
@@ -126,6 +161,7 @@ REST_FRAMEWORK = {
         "auth_login": "10/minute",
         "auth_register": env("AUTH_REGISTER_RATE", default="10/hour"),
         "auth_email": "5/hour",
+        "workspace_invitation": "10/hour",
     },
 }
 
@@ -179,3 +215,29 @@ ATTACHMENT_ALLOWED_EXTENSIONS = env.list(
     "ATTACHMENT_ALLOWED_EXTENSIONS",
     default=[".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt", ".csv"],
 )
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {"()": "apps.core.logging.JsonLogFormatter"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
+    },
+    "loggers": {
+        "teamsync.request": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}

@@ -1,11 +1,11 @@
 # TeamSync
 
 TeamSync is a collaborative project-management application. This repository
-contains the engineering foundation and M01-M09 modules, with M10 search,
-settings, and usability work in progress: account management, workspaces,
-projects, task management, Kanban boards, collaboration, private task/comment
-attachments, notifications, workspace activity, dashboard, calendar, analytics,
-and global search.
+contains the engineering foundation and M01-M10 modules: account management,
+workspaces, projects, task management, Kanban boards, collaboration, private
+task/comment attachments, notifications, workspace activity, dashboard,
+calendar, analytics, global search, and settings. M11 hardening and deployment
+work is in progress.
 
 ## Repository layout
 
@@ -76,6 +76,22 @@ The Vite development server runs at `http://localhost:5173` and proxies `/api`
 requests to the backend at `http://127.0.0.1:8000`. Set
 `VITE_API_BASE_URL` in the root `.env` to override the API base URL.
 
+### Docker Compose (local development)
+
+Docker Desktop with Compose v2 can run PostgreSQL, Django, and Vite together.
+Copy `.env.docker.example` to `.env.docker`, replace its local-only values,
+then run:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```
+
+Open `http://localhost:5173`. See
+[deployment-and-operations.md](docs/deployment-and-operations.md) for shutdown,
+production security, HTTPS, logs, health checks, and backup guidance. Never
+expose the local Compose services or sample values to the internet.
+
 Frontend tests, lint, and production build:
 
 ```powershell
@@ -83,6 +99,8 @@ Set-Location frontend
 npm run build
 npm run lint
 npm test
+npx playwright install chromium
+npm run test:e2e
 ```
 
 Backend API tests use an isolated in-memory SQLite database so the local
@@ -150,5 +168,7 @@ Run the reminder command on a schedule (for example, once each morning):
   [dashboard-calendar-analytics.md](docs/dashboard-calendar-analytics.md).
   Global search, filters, settings, and usability are documented in
   [search-settings-usability.md](docs/search-settings-usability.md).
+- M11 testing and deployment procedures are documented in
+  [deployment-and-operations.md](docs/deployment-and-operations.md).
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.
