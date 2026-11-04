@@ -295,7 +295,8 @@ class TaskApiTests(TestCase):
         url = (
             f"{self.task_url()}?project_id={self.project.pk}"
             "&search=release&status=review&priority=urgent"
-            f"&assignee={self.member.pk}&due_before=2026-12-15"
+            f"&assignee={self.member.pk}&creator={self.owner.pk}"
+            "&due_before=2026-12-15"
         )
         response = self.request(self.member, "GET", url)
         self.assertEqual(response.status_code, 200, response.content)
@@ -312,8 +313,15 @@ class TaskApiTests(TestCase):
             "GET",
             f"{self.task_url()}?project_id={self.project.pk}&assignee=not-a-uuid",
         )
+        creator_search = self.request(
+            self.owner,
+            "GET",
+            f"{self.task_url()}?project_id={self.project.pk}&creator=task-owner",
+        )
         self.assertEqual(invalid_filter.status_code, 400)
         self.assertEqual(invalid_assignee.status_code, 400)
+        self.assertEqual(creator_search.status_code, 200, creator_search.content)
+        self.assertEqual(creator_search.json()["count"], 2)
 
     def test_cross_workspace_and_direct_uuid_access_are_blocked(self):
         outside = self.request(

@@ -129,6 +129,7 @@ export interface TaskFilters {
   status?: TaskStatus
   priority?: TaskPriority
   assignee?: string
+  creator?: string
   label?: string
   due_after?: string
   due_before?: string

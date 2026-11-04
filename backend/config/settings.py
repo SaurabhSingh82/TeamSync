@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.tasks",
     "apps.notifications",
     "apps.dashboard",
+    "apps.search",
 ]
 
 MIDDLEWARE = [

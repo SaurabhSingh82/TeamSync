@@ -439,6 +439,19 @@ def list_tasks(queryset, params):
             ) from exc
         queryset = queryset.filter(assignees__user_id=assignee_id)
 
+    creator_id = params.get("creator", "").strip()
+    if creator_id:
+        try:
+            creator_id = UUID(creator_id)
+        except ValueError:
+            queryset = queryset.filter(
+                Q(creator__username__icontains=creator_id)
+                | Q(creator__first_name__icontains=creator_id)
+                | Q(creator__last_name__icontains=creator_id)
+            )
+        else:
+            queryset = queryset.filter(creator_id=creator_id)
+
     label_id = params.get("label", "").strip()
     if label_id:
         try:
