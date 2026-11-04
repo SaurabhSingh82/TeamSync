@@ -1,0 +1,16 @@
+.git
+.venv
+venv
+frontend/node_modules
+frontend/dist
+backend/__pycache__
+backend/media
+backend/private_attachments
+backend/staticfiles
+*.py[cod]
+.env
+.env.*
+!.env.docker.example
+*.sqlite3
+TeamSync_SRS_and_AI_Agent_Playbook_v1.1.docx
+stitch_teamsync_saas_product_design_system

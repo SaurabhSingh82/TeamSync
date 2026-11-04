@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.projects.services import remove_workspace_member_from_projects
@@ -250,6 +251,13 @@ class OwnershipTransferView(APIView):
 
 class WorkspaceInvitationListCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "workspace_invitation"
+
+    def get_throttles(self):
+        if self.request.method == "GET":
+            return []
+        return super().get_throttles()
 
     def get(self, request, workspace_id):
         workspace, membership = get_workspace_membership(request.user, workspace_id)
@@ -298,6 +306,8 @@ class WorkspaceInvitationListCreateView(APIView):
 
 class WorkspaceInvitationActionView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "workspace_invitation"
 
     def post(self, request, workspace_id, invitation_id, action):
         if action not in ("resend", "revoke"):
@@ -330,6 +340,8 @@ class WorkspaceInvitationActionView(APIView):
 
 class AcceptWorkspaceInvitationView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "invitation_accept"
 
     def post(self, request):
         serializer = AcceptInvitationSerializer(data=request.data)
