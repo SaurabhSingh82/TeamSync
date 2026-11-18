@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.notifications.views import (
     NotificationListView,
+    NotificationPreferenceView,
     NotificationMarkAllReadView,
     NotificationReadStateView,
     WorkspaceActivityView,
@@ -10,6 +11,11 @@ from apps.notifications.views import (
 
 urlpatterns = [
     path("notifications/", NotificationListView.as_view(), name="notification-list"),
+    path(
+        "notifications/preferences/",
+        NotificationPreferenceView.as_view(),
+        name="notification-preferences",
+    ),
     path(
         "notifications/read-all/",
         NotificationMarkAllReadView.as_view(),

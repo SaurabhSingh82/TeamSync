@@ -12,6 +12,7 @@ interface InviteMemberDialogProps {
   onInvite: (input: {
     email: string
     role: WorkspaceInvitableRole
+    message: string
   }) => Promise<void>
 }
 
@@ -32,6 +33,7 @@ export function InviteMemberDialog({
       await onInvite({
         email: String(form.get('email') ?? ''),
         role: String(form.get('role') ?? 'member') as WorkspaceInvitableRole,
+        message: String(form.get('message') ?? ''),
       })
       formElement.reset()
       setOpen(false)
@@ -43,7 +45,7 @@ export function InviteMemberDialog({
   return (
     <div>
       <button
-        className="rounded-md bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800"
+        className="teamsync-primary-button rounded-md px-4 py-2 text-sm font-semibold"
         onClick={() => setOpen(true)}
         type="button"
       >
@@ -75,6 +77,17 @@ export function InviteMemberDialog({
                 />
               </label>
               <label className="block text-sm font-medium text-slate-700">
+                Personal message <span className="font-normal text-slate-500">(optional)</span>
+                <textarea
+                  className="mt-1.5 block min-h-24 w-full rounded-md border border-slate-300 px-3 py-2.5"
+                  maxLength={500}
+                  name="message"
+                  placeholder="Explain why you are inviting this person."
+                  rows={3}
+                />
+                <span className="mt-1 block text-xs text-slate-500">Up to 500 characters.</span>
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
                 Workspace role
                 <select
                   className="mt-1.5 block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5"
@@ -101,7 +114,7 @@ export function InviteMemberDialog({
                   Cancel
                 </button>
                 <button
-                  className="rounded-md bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  className="teamsync-primary-button rounded-md px-4 py-2 text-sm font-semibold"
                   disabled={busy}
                   type="submit"
                 >

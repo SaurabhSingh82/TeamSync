@@ -61,6 +61,7 @@ import { formatTaskDate } from '../tasks/format'
 import { taskPriorities, taskStatuses } from '../tasks/options'
 import { moveTaskOptimistically } from '../tasks/boardState'
 import type { BoardColumn, ProjectBoard, Task, TaskLabel, TaskPriority, TaskStatus } from '../tasks/types'
+import { useRealtime } from '../realtime/useRealtime'
 
 type ColumnAction =
   | { kind: 'rename'; column: BoardColumn }
@@ -110,6 +111,7 @@ export function ProjectBoardPage({
   const pageKey = `${project.id}:${refreshKey}:${includeArchived}`
   const canManageBoard = canManageProject(project)
   const canCreateTask =
+    !project.workspace_archived &&
     project.current_user_workspace_role !== 'viewer' &&
     (canManageBoard || project.current_user_project_role === 'member')
   const sensors = useSensors(
@@ -130,6 +132,23 @@ export function ProjectBoardPage({
     setLoadedKey(pageKey)
     return currentBoard
   }, [includeArchived, pageKey, project.id])
+
+  useRealtime(
+    workspaceId
+      ? `/ws/workspaces/${workspaceId}/projects/${project.id}/`
+      : null,
+    (event) => {
+      if (
+        event.type === 'resync.required'
+        || event.type.startsWith('task.')
+        || event.type.startsWith('subtask.')
+        || event.type.startsWith('comment.')
+        || event.type.startsWith('board.')
+      ) {
+        void loadBoard()
+      }
+    },
+  )
 
   useEffect(() => {
     let active = true

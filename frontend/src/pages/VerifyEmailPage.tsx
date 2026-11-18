@@ -43,7 +43,7 @@ export function VerifyEmailPage() {
             Confirm that you own the email address used for this account.
           </p>
           <button
-            className="mt-6 rounded-md bg-slate-900 px-4 py-2.5 font-semibold text-white hover:bg-slate-700"
+            className="teamsync-primary-button mt-6 rounded-md px-4 py-2.5 font-semibold"
             onClick={() => void handleVerify()}
             type="button"
           >

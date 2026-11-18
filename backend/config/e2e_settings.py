@@ -18,5 +18,7 @@ REST_FRAMEWORK = {
         "user": "1000/minute",
         "workspace_invitation": "1000/minute",
         "invitation_accept": "1000/minute",
+        "invitation_accept_v2": "1000/minute",
+        "auth_email_v2": "1000/minute",
     },
 }

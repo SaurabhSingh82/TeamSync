@@ -27,8 +27,9 @@ async function getAllPages<T>(path: string) {
   return results
 }
 
-export function listWorkspaces() {
-  return getAllPages<Workspace>('/workspaces/')
+export function listWorkspaces(options: { archived?: 'true' | 'false' | 'all' } = {}) {
+  const query = options.archived ? `?archived=${options.archived}` : ''
+  return getAllPages<Workspace>(`/workspaces/${query}`)
 }
 
 export async function createWorkspace(input: {
@@ -57,6 +58,24 @@ export async function updateWorkspace(
 
 export function deleteWorkspace(workspaceId: string) {
   return apiClient.delete(`/workspaces/${workspaceId}/`)
+}
+
+export async function archiveWorkspace(workspaceId: string) {
+  const { data } = await apiClient.post<Workspace>(
+    `/workspaces/${workspaceId}/archive/`,
+  )
+  return data
+}
+
+export async function restoreWorkspace(workspaceId: string) {
+  const { data } = await apiClient.post<Workspace>(
+    `/workspaces/${workspaceId}/restore/`,
+  )
+  return data
+}
+
+export function leaveWorkspace(workspaceId: string) {
+  return apiClient.post(`/workspaces/${workspaceId}/leave/`)
 }
 
 export function listWorkspaceMembers(workspaceId: string) {
@@ -102,7 +121,7 @@ export function listWorkspaceInvitations(workspaceId: string) {
 
 export async function inviteWorkspaceMember(
   workspaceId: string,
-  input: { email: string; role: WorkspaceInvitableRole },
+  input: { email: string; role: WorkspaceInvitableRole; message: string },
 ) {
   const { data } = await apiClient.post<WorkspaceInvitation>(
     `/workspaces/${workspaceId}/invitations/`,
@@ -136,5 +155,28 @@ export async function acceptWorkspaceInvitation(token: string) {
     workspace: Workspace
     membership: WorkspaceMember
   }>('/invitations/accept/', { token })
+  return data
+}
+
+export function rejectWorkspaceInvitation(token: string) {
+  return apiClient.post('/invitations/reject/', { token })
+}
+
+export function listReceivedInvitations() {
+  return getAllPages<WorkspaceInvitation>('/invitations/')
+}
+
+export async function acceptReceivedInvitation(invitationId: string) {
+  const { data } = await apiClient.post<{
+    workspace: Workspace
+    membership: WorkspaceMember
+  }>(`/invitations/${invitationId}/accept/`)
+  return data
+}
+
+export async function rejectReceivedInvitation(invitationId: string) {
+  const { data } = await apiClient.post<WorkspaceInvitation>(
+    `/invitations/${invitationId}/reject/`,
+  )
   return data
 }

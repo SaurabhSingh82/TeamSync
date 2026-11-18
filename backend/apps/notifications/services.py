@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.notifications.models import ActivityEvent, Notification
+from apps.notifications.models import ActivityEvent, Notification, NotificationPreference
 from apps.projects.models import ProjectMember
 from apps.tasks.models import Task, TaskAssignee, TaskCollaborator
 from apps.workspaces.models import WorkspaceMember
@@ -20,7 +20,10 @@ def create_notification(
     target_url="",
     metadata=None,
 ):
-    notification, _ = Notification.objects.get_or_create(
+    preferences = NotificationPreference.objects.filter(user=recipient).first()
+    if preferences is not None and not preferences.is_enabled(kind):
+        return None
+    notification, created = Notification.objects.get_or_create(
         event_key=event_key,
         defaults={
             "recipient": recipient,
@@ -34,6 +37,17 @@ def create_notification(
             "metadata": metadata or {},
         },
     )
+    if created:
+        from apps.realtime.events import schedule_user_event
+
+        schedule_user_event(
+            user_id=recipient.pk,
+            event_type="notification.created",
+            payload={
+                "notification_id": str(notification.pk),
+                "unread": True,
+            },
+        )
     return notification
 
 
@@ -179,17 +193,35 @@ def notify_workspace_invitation(*, invitation):
         actor=invitation.invited_by,
         kind=Notification.Kind.WORKSPACE_INVITATION,
         title="You were invited to a workspace",
-        message=f"{invitation.workspace.name} - check your email to accept.",
-        target_url="",
+        message=invitation.message or "You were invited to collaborate in TeamSync.",
+        target_url=f"/invitations?invitation={invitation.pk}",
         event_key=f"workspace-invitation:{invitation.pk}:{recipient.pk}",
         metadata={
             "invitation_id": str(invitation.pk),
             "workspace_id": str(invitation.workspace_id),
+            "role": invitation.role,
+            "message": invitation.message,
+            "expires_at": invitation.expires_at.isoformat(),
         },
     )
 
 
 def notify_invitation_accepted(*, invitation, user):
+    invitation_notification = Notification.objects.filter(
+        recipient=user,
+        kind=Notification.Kind.WORKSPACE_INVITATION,
+        metadata__invitation_id=str(invitation.pk),
+        read_at__isnull=True,
+    )
+    updated = invitation_notification.update(read_at=timezone.now())
+    if updated:
+        from apps.realtime.events import schedule_user_event
+
+        schedule_user_event(
+            user_id=user.pk,
+            event_type="notification.read_state",
+            payload={"invitation_id": str(invitation.pk), "read": True},
+        )
     create_activity_event(
         workspace=invitation.workspace,
         actor=user,
@@ -212,6 +244,23 @@ def notify_invitation_accepted(*, invitation, user):
                 "invitation_id": str(invitation.pk),
                 "workspace_id": str(invitation.workspace_id),
             },
+        )
+
+
+def notify_invitation_rejected(*, invitation, user):
+    invitation_notification = Notification.objects.filter(
+        recipient=user,
+        kind=Notification.Kind.WORKSPACE_INVITATION,
+        metadata__invitation_id=str(invitation.pk),
+        read_at__isnull=True,
+    )
+    if invitation_notification.update(read_at=timezone.now()):
+        from apps.realtime.events import schedule_user_event
+
+        schedule_user_event(
+            user_id=user.pk,
+            event_type="notification.read_state",
+            payload={"invitation_id": str(invitation.pk), "read": True},
         )
 
 

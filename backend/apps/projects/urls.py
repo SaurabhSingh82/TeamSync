@@ -7,6 +7,10 @@ from apps.projects.views import (
     ProjectMemberListCreateView,
     WorkspaceProjectListCreateView,
 )
+from apps.projects.milestone_views import (
+    ProjectMilestoneDetailView,
+    ProjectMilestoneListCreateView,
+)
 
 
 urlpatterns = [
@@ -24,6 +28,16 @@ urlpatterns = [
         "projects/<uuid:project_id>/members/",
         ProjectMemberListCreateView.as_view(),
         name="project-members",
+    ),
+    path(
+        "projects/<uuid:project_id>/milestones/",
+        ProjectMilestoneListCreateView.as_view(),
+        name="project-milestones",
+    ),
+    path(
+        "milestones/<uuid:milestone_id>/",
+        ProjectMilestoneDetailView.as_view(),
+        name="milestone-detail",
     ),
     path(
         "projects/<uuid:project_id>/members/<uuid:member_id>/",

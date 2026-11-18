@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Archive, RotateCcw } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '../components/workspaces/ConfirmDialog'
@@ -6,6 +7,8 @@ import { getApiErrorMessage } from '../auth/errors'
 import {
   deleteWorkspace,
   getWorkspace,
+  archiveWorkspace,
+  restoreWorkspace,
   updateWorkspace,
 } from '../workspaces/api'
 import type { Workspace } from '../workspaces/types'
@@ -18,9 +21,11 @@ export function WorkspaceSettingsPage() {
   const [error, setError] = useState('')
   const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saved, setSaved] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -81,6 +86,24 @@ export function WorkspaceSettingsPage() {
     }
   }
 
+  async function handleArchive() {
+    if (!workspaceId || !workspace) return
+    setError('')
+    setArchiving(true)
+    try {
+      const updated = workspace.archived_at
+        ? await restoreWorkspace(workspaceId)
+        : await archiveWorkspace(workspaceId)
+      setWorkspace(updated)
+      setConfirmArchive(false)
+    } catch (archiveError) {
+      setError(getApiErrorMessage(archiveError))
+      setConfirmArchive(false)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
   if (loadedWorkspaceId !== workspaceId) {
     return <p role="status">Loading workspace…</p>
   }
@@ -95,7 +118,9 @@ export function WorkspaceSettingsPage() {
     )
   }
 
-  const canManage = ['owner', 'admin'].includes(workspace.current_user_role)
+  const canManage =
+    !workspace.archived_at &&
+    ['owner', 'admin'].includes(workspace.current_user_role)
   const isOwner = workspace.current_user_role === 'owner'
 
   return (
@@ -109,6 +134,11 @@ export function WorkspaceSettingsPage() {
             {workspace.name}
           </h1>
         </div>
+        {workspace.archived_at && (
+          <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+            This workspace is archived and read-only. Only the Owner can restore it.
+          </p>
+        )}
         <Link
           className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
           to={`/workspaces/${workspace.id}/members`}
@@ -146,7 +176,7 @@ export function WorkspaceSettingsPage() {
         {saved && <p className="text-sm text-emerald-800" role="status">Settings saved.</p>}
         {canManage && (
           <button
-            className="rounded-md bg-slate-900 px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+            className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
             disabled={saving}
             type="submit"
           >
@@ -154,6 +184,30 @@ export function WorkspaceSettingsPage() {
           </button>
         )}
       </form>
+      {isOwner && (
+        <div className="mt-12 border-t border-slate-200 pt-6">
+          <h2 className="text-lg font-semibold text-slate-950">Workspace lifecycle</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            {workspace.archived_at
+              ? 'Restore this workspace to allow members to make changes again.'
+              : 'Archiving hides this workspace from normal lists and makes it read-only for its members.'}
+          </p>
+          <button
+            className="mt-4 inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white disabled:opacity-60"
+            disabled={archiving}
+            onClick={() => {
+              if (workspace.archived_at) void handleArchive()
+              else setConfirmArchive(true)
+            }}
+            type="button"
+          >
+            {workspace.archived_at
+              ? <RotateCcw aria-hidden="true" size={16} />
+              : <Archive aria-hidden="true" size={16} />}
+            {workspace.archived_at ? 'Restore workspace' : 'Archive workspace'}
+          </button>
+        </div>
+      )}
       {isOwner && (
         <div className="mt-12 border-t border-slate-200 pt-6">
           <h2 className="text-lg font-semibold text-slate-950">Delete workspace</h2>
@@ -179,6 +233,18 @@ export function WorkspaceSettingsPage() {
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => void handleDelete()}
           title="Delete this workspace?"
+        />
+      )}
+      {confirmArchive && (
+        <ConfirmDialog
+          busy={archiving}
+          confirmLabel="Archive workspace"
+          description={
+            <>Archive <strong>{workspace.name}</strong>? Members will retain read access, but workspace changes will be disabled.</>
+          }
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={() => void handleArchive()}
+          title="Archive this workspace?"
         />
       )}
     </section>

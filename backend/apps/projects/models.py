@@ -108,3 +108,29 @@ class ProjectMember(models.Model):
 
     def __str__(self):
         return f"{self.user_id} in {self.project_id} ({self.role})"
+
+
+class Milestone(models.Model):
+    class Status(models.TextChoices):
+        PLANNED = "planned", "Planned"
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETED = "completed", "Completed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="milestones")
+    title = models.CharField(max_length=180)
+    description = models.TextField(blank=True)
+    due_date = models.DateField()
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PLANNED)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("due_date", "title", "id")
+        constraints = [
+            models.CheckConstraint(condition=~Q(title=""), name="milestone_title_not_empty"),
+        ]
+        indexes = [
+            models.Index(fields=("project", "due_date"), name="milestone_project_due_idx"),
+        ]

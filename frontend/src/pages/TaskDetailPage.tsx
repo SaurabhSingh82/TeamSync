@@ -153,7 +153,8 @@ export function TaskDetailPage({
   }, [project.id, taskId])
 
   const isManager = canManageProject(project)
-  const isProjectMember = project.current_user_workspace_role !== 'viewer' &&
+  const isProjectMember = !project.workspace_archived &&
+    project.current_user_workspace_role !== 'viewer' &&
     project.current_user_project_role === 'member'
   const isParticipant = Boolean(
     task &&

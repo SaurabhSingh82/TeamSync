@@ -62,6 +62,19 @@ class Notification(models.Model):
         ]
 
 
+class NotificationPreference(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notification_preferences",
+    )
+    categories = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def is_enabled(self, kind):
+        return self.categories.get(kind, True)
+
+
 class ActivityEvent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(

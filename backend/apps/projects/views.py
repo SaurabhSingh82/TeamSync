@@ -106,6 +106,13 @@ class ProjectDetailView(APIView):
             )
             serializer.is_valid(raise_exception=True)
             project = serializer.save()
+            from apps.realtime.events import schedule_project_event
+
+            schedule_project_event(
+                project_id=project.pk,
+                event_type="project.updated",
+                payload={"project_id": str(project.pk)},
+            )
         access.project = project
         return project_read_response(project, request, access=access)
 

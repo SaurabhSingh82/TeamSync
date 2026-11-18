@@ -124,7 +124,7 @@ class AuthenticationApiTests(TestCase):
         refresh_cookie = response.cookies["teamsync_refresh"]
         self.assertTrue(access_cookie["httponly"])
         self.assertTrue(refresh_cookie["httponly"])
-        self.assertEqual(access_cookie["path"], "/api/")
+        self.assertEqual(access_cookie["path"], "/")
         self.assertEqual(refresh_cookie["path"], "/api/auth/")
 
         profile = self.client.get("/api/auth/me/")

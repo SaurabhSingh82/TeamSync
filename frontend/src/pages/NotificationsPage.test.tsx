@@ -96,4 +96,43 @@ describe('M08 notifications and activity', () => {
     )
     expect(api.listWorkspaceActivity).toHaveBeenCalledWith('workspace-1')
   })
+
+  it('publishes an updated unread count after marking all read', async () => {
+    api.listNotifications.mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{
+        id: 'notice-1',
+        kind: 'task_assigned',
+        title: 'Unread notification',
+        message: '',
+        target_url: '',
+        metadata: {},
+        actor_name: 'Project Manager',
+        created_at: '2026-11-02T10:00:00Z',
+        read_at: null,
+      }],
+    })
+    api.markAllNotificationsRead.mockResolvedValue({ updated: 1 })
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+
+    render(
+      <MemoryRouter>
+        <NotificationsPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Unread notification')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all read' }))
+
+    await waitFor(() => {
+      expect(api.markAllNotificationsRead).toHaveBeenCalledOnce()
+    })
+    const updateEvent = dispatchSpy.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === 'teamsync:notifications-updated') as CustomEvent<{ unreadCount: number }>
+    expect(updateEvent.detail.unreadCount).toBe(0)
+    dispatchSpy.mockRestore()
+  })
 })

@@ -68,7 +68,7 @@ export function DashboardPage() {
           <Link className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50" to="/calendar">
             Calendar <ArrowRight aria-hidden="true" size={16} />
           </Link>
-          <Link className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-teamsync-navy px-3 text-sm font-semibold text-white hover:bg-teamsync-navy-light" to="/analytics">
+          <Link className="teamsync-primary-button inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold" to="/analytics">
             Analytics <ArrowRight aria-hidden="true" size={16} />
           </Link>
         </div>

@@ -7,7 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.notifications.models import ActivityEvent, Notification
+from apps.notifications.models import ActivityEvent, Notification, NotificationPreference
+from apps.notifications.preference_serializers import NotificationPreferenceSerializer
 from apps.notifications.serializers import (
     ActivityEventReadSerializer,
     NotificationReadSerializer,
@@ -65,6 +66,29 @@ class NotificationListView(APIView):
         )
 
 
+class NotificationPreferenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        preference, _created = NotificationPreference.objects.get_or_create(
+            user=request.user
+        )
+        return Response({"categories": preference.categories})
+
+    def patch(self, request):
+        serializer = NotificationPreferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        preference, _created = NotificationPreference.objects.get_or_create(
+            user=request.user
+        )
+        preference.categories = {
+            **preference.categories,
+            **serializer.validated_data.get("categories", {}),
+        }
+        preference.save(update_fields=("categories", "updated_at"))
+        return Response({"categories": preference.categories})
+
+
 class NotificationReadStateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -76,6 +100,16 @@ class NotificationReadStateView(APIView):
             raise NotFound("Notification not found.")
         notification.read_at = timezone.now() if read_state == "read" else None
         notification.save(update_fields=("read_at",))
+        from apps.realtime.events import schedule_user_event
+
+        schedule_user_event(
+            user_id=request.user.pk,
+            event_type="notification.read_state",
+            payload={
+                "notification_id": str(notification.pk),
+                "read": notification.read_at is not None,
+            },
+        )
         return Response(NotificationReadSerializer(notification).data)
 
 
@@ -85,6 +119,13 @@ class NotificationMarkAllReadView(APIView):
     def post(self, request):
         updated = visible_notifications(request.user).filter(read_at__isnull=True).update(
             read_at=timezone.now()
+        )
+        from apps.realtime.events import schedule_user_event
+
+        schedule_user_event(
+            user_id=request.user.pk,
+            event_type="notifications.read_all",
+            payload={"updated": updated},
         )
         return Response({"updated": updated}, status=status.HTTP_200_OK)
 

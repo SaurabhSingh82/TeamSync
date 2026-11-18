@@ -13,6 +13,16 @@ from apps.workspaces.models import Workspace, WorkspaceMember
 from apps.workspaces.services import Conflict
 
 
+def _schedule_project_event(*, project_id, event_type, payload=None):
+    from apps.realtime.events import schedule_project_event
+
+    schedule_project_event(
+        project_id=project_id,
+        event_type=event_type,
+        payload=payload,
+    )
+
+
 def create_project(*, workspace, creator, values):
     with transaction.atomic():
         locked_workspace = Workspace.objects.select_for_update().get(pk=workspace.pk)
@@ -24,6 +34,8 @@ def create_project(*, workspace, creator, values):
             creator_membership is None
         ):
             raise NotFound("Workspace not found.")
+        if locked_workspace.archived_at is not None:
+            raise PermissionDenied("Archived workspaces are read-only.")
         if creator_membership.role not in WORKSPACE_ADMIN_ROLES:
             raise PermissionDenied(
                 "Only workspace Owners and Admins can create projects."
@@ -42,6 +54,16 @@ def create_project(*, workspace, creator, values):
         from apps.tasks.board_services import create_project_board
 
         create_project_board(project)
+        from apps.realtime.events import schedule_workspace_event
+
+        schedule_workspace_event(
+            workspace_id=locked_workspace.pk,
+            event_type="project.created",
+            payload={
+                "project_id": str(project.pk),
+                "workspace_id": str(locked_workspace.pk),
+            },
+        )
     return project
 
 
@@ -61,11 +83,17 @@ def add_project_member(*, access, actor, user_id, role):
         )
     try:
         with transaction.atomic():
-            return ProjectMember.objects.create(
+            member = ProjectMember.objects.create(
                 project=access.project,
                 user_id=user_id,
                 role=role,
             )
+            _schedule_project_event(
+                project_id=access.project.pk,
+                event_type="project.member_added",
+                payload={"user_id": str(user_id), "role": role},
+            )
+            return member
     except IntegrityError as exc:
         raise Conflict("This user is already a project member.") from exc
 
@@ -98,6 +126,11 @@ def update_project_member(*, access, actor, member_id, role):
 
     member.role = role
     member.save(update_fields=("role", "updated_at"))
+    _schedule_project_event(
+        project_id=access.project.pk,
+        event_type="project.member_role_changed",
+        payload={"user_id": str(member.user_id), "role": role},
+    )
     return member
 
 
@@ -120,7 +153,13 @@ def remove_project_member(*, access, member_id):
         .exists()
     ):
         raise Conflict("Assign another Project Manager before removing this member.")
+    user_id = member.user_id
     member.delete()
+    _schedule_project_event(
+        project_id=access.project.pk,
+        event_type="project.member_removed",
+        payload={"user_id": str(user_id)},
+    )
 
 
 def remove_workspace_member_from_projects(*, workspace, user_id):
@@ -170,7 +209,7 @@ def queryset_for_workspace_projects(*, user, workspace, workspace_role):
         workspace_id=OuterRef("workspace_id"),
         user=user,
     ).values("role")[:1]
-    projects = Project.objects.filter(workspace=workspace).annotate(
+    projects = Project.objects.filter(workspace=workspace).select_related("workspace").annotate(
         current_user_project_role=Subquery(project_role_query),
         current_user_workspace_role=Subquery(workspace_role_query),
     )
@@ -211,6 +250,11 @@ def set_project_archived(*, access, archived):
     project = access.project
     project.archived_at = timezone.now() if archived else None
     project.save(update_fields=("archived_at", "updated_at"))
+    _schedule_project_event(
+        project_id=project.pk,
+        event_type="project.archived" if archived else "project.restored",
+        payload={"archived": archived},
+    )
     return project
 
 

@@ -22,6 +22,7 @@ from apps.workspaces.models import (
     WorkspaceMember,
 )
 from apps.workspaces.services import (
+    create_invitation,
     create_workspace,
     dispatch_pending_invitation_emails,
     hash_invitation_token,
@@ -120,7 +121,6 @@ class WorkspaceApiTests(TestCase):
                 role=WorkspaceMember.Role.OWNER,
             ).exists()
         )
-
         listed = self.json_request(
             self.owner_client,
             self.owner_csrf,
@@ -133,6 +133,115 @@ class WorkspaceApiTests(TestCase):
         self.assertEqual(
             {item["current_user_role"] for item in items},
             {WorkspaceMember.Role.OWNER},
+        )
+
+    def test_owner_can_archive_and_restore_workspace_while_members_retain_read_access(self):
+        response = self.json_request(
+            self.owner_client,
+            self.owner_csrf,
+            "POST",
+            self.workspace_url("archive/"),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.workspace.refresh_from_db()
+        self.assertIsNotNone(self.workspace.archived_at)
+
+        member_read = self.member_client.get(self.workspace_url())
+        self.assertEqual(member_read.status_code, 200, member_read.content)
+        self.assertIsNotNone(member_read.json()["archived_at"])
+
+        member_update = self.json_request(
+            self.member_client,
+            self.member_csrf,
+            "PATCH",
+            self.workspace_url(),
+            {"name": "Blocked"},
+        )
+        self.assertEqual(member_update.status_code, 403, member_update.content)
+
+        restore = self.json_request(
+            self.owner_client,
+            self.owner_csrf,
+            "POST",
+            self.workspace_url("restore/"),
+        )
+        self.assertEqual(restore.status_code, 200, restore.content)
+        self.workspace.refresh_from_db()
+        self.assertIsNone(self.workspace.archived_at)
+
+    def test_non_owner_can_leave_but_owner_must_transfer_first(self):
+        member_leave = self.json_request(
+            self.member_client,
+            self.member_csrf,
+            "POST",
+            self.workspace_url("leave/"),
+        )
+        self.assertEqual(member_leave.status_code, 204, member_leave.content)
+        self.assertFalse(
+            WorkspaceMember.objects.filter(
+                workspace=self.workspace,
+                user=self.member,
+            ).exists()
+        )
+
+        owner_leave = self.json_request(
+            self.owner_client,
+            self.owner_csrf,
+            "POST",
+            self.workspace_url("leave/"),
+        )
+        self.assertEqual(owner_leave.status_code, 403, owner_leave.content)
+
+    def test_matching_invitee_can_reject_invitation(self):
+        invitation = create_invitation(
+            workspace=self.workspace,
+            inviter=self.owner,
+            email="invitee@example.com",
+            role=WorkspaceMember.Role.MEMBER,
+        )
+        token = "rejection-token-" + ("x" * 32)
+        invitation.token_hash = hash_invitation_token(token)
+        invitation.save(update_fields=("token_hash",))
+        invitee = self.create_user("invitee", "invitee@example.com")
+        invitee_client = self.authenticated_client(invitee, self.csrf)
+
+        response = self.json_request(
+            invitee_client,
+            self.csrf,
+            "POST",
+            "/api/invitations/reject/",
+            {"token": token},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        invitation.refresh_from_db()
+        self.assertEqual(
+            invitation.status,
+            WorkspaceInvitation.Status.REJECTED,
+        )
+
+    def test_invitation_rejection_requires_matching_authenticated_email(self):
+        invitation = create_invitation(
+            workspace=self.workspace,
+            inviter=self.owner,
+            email="invitee@example.com",
+            role=WorkspaceMember.Role.MEMBER,
+        )
+        token = "rejection-token-" + ("y" * 32)
+        invitation.token_hash = hash_invitation_token(token)
+        invitation.save(update_fields=("token_hash",))
+
+        response = self.json_request(
+            self.member_client,
+            self.member_csrf,
+            "POST",
+            "/api/invitations/reject/",
+            {"token": token},
+        )
+        self.assertEqual(response.status_code, 403, response.content)
+        invitation.refresh_from_db()
+        self.assertEqual(
+            invitation.status,
+            WorkspaceInvitation.Status.PENDING,
         )
 
     def test_workspace_access_is_scoped_to_membership(self):

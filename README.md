@@ -5,7 +5,8 @@ contains the engineering foundation and M01-M10 modules: account management,
 workspaces, projects, task management, Kanban boards, collaboration, private
 task/comment attachments, notifications, workspace activity, dashboard,
 calendar, analytics, global search, and settings. M11 hardening and deployment
-work is in progress.
+is implemented; the end-to-end integration audit and real-service verification
+are in progress.
 
 ## Repository layout
 
@@ -43,8 +44,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-local-postgr
 
 The script sets the user environment variable `TEAMSYNC_ENV_FILE` to that
 private environment file. Restart VS Code after setup so new terminals inherit
-it. For a manual setup, copy `.env.example` to `.env` and replace its
-placeholders; `.env` is ignored by Git.
+it. Add Gmail SMTP and frontend URL values to that file. If
+`TEAMSYNC_ENV_FILE` is not set and there is no existing local configuration,
+copy `.env.example` to `.env` and replace its placeholders; `.env` is ignored
+by Git. Never share credentials in chat. See the
+[local configuration guide](docs/local-configuration.md) for all settings and
+the [integration inventory](docs/application-integration-inventory.md) for
+verified scope and remaining gaps.
 
 PostgreSQL must listen only on `127.0.0.1:5432` for local development. Never
 use local trust authentication or the development database credentials in
@@ -170,5 +176,8 @@ Run the reminder command on a schedule (for example, once each morning):
   [search-settings-usability.md](docs/search-settings-usability.md).
 - M11 testing and deployment procedures are documented in
   [deployment-and-operations.md](docs/deployment-and-operations.md).
+- The current source-based integration assessment is in
+  [application-integration-inventory.md](docs/application-integration-inventory.md);
+  local service and secret setup is in [local-configuration.md](docs/local-configuration.md).
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

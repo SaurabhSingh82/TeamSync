@@ -30,6 +30,20 @@ from apps.workspaces.models import WorkspaceMember
 from apps.workspaces.services import Conflict
 
 
+def _schedule_task_event(*, project_id, task_id, event_type, payload=None):
+    from apps.realtime.events import schedule_project_event
+
+    schedule_project_event(
+        project_id=project_id,
+        event_type=event_type,
+        payload={
+            "project_id": str(project_id),
+            "task_id": str(task_id),
+            **(payload or {}),
+        },
+    )
+
+
 def _project_members(project, user_ids):
     memberships = list(
         ProjectMember.objects.select_related("user")
@@ -183,6 +197,11 @@ def create_task(*, access, creator, values):
         TaskLabel.objects.bulk_create(
             [TaskLabel(task=task, label=label) for label in labels]
         )
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=task.pk,
+        event_type="task.created",
+    )
     return task
 
 
@@ -254,6 +273,16 @@ def update_task(*, access, actor, values, expected_version):
             )
         access.board.version += 1
         access.board.save(update_fields=("version", "updated_at"))
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="task.updated",
+        payload={
+            "fields": list(changed_fields),
+            "status": access.task.status,
+            "version": access.task.version,
+        },
+    )
     return access.task
 
 
@@ -273,6 +302,11 @@ def delete_task(*, access):
     access.task.delete()
     access.board.version += 1
     access.board.save(update_fields=("version", "updated_at"))
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="task.deleted",
+    )
 
 
 def set_task_archived(*, access, archived):
@@ -281,6 +315,12 @@ def set_task_archived(*, access, archived):
     access.task.save(update_fields=("archived_at", "updated_at"))
     access.board.version += 1
     access.board.save(update_fields=("version", "updated_at"))
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="task.updated",
+        payload={"fields": ["archived_at"]},
+    )
     return access.task
 
 
@@ -321,6 +361,12 @@ def duplicate_task(*, access, actor):
                 for label in original.labels.all()
             ]
         )
+    _schedule_task_event(
+        project_id=original.project.pk,
+        task_id=duplicate.pk,
+        event_type="task.created",
+        payload={"duplicated_from": str(original.pk)},
+    )
     return duplicate
 
 
@@ -368,6 +414,12 @@ def add_task_assignment(*, access, actor, user_id, collaborator=False):
         assignment_id=assignment.pk,
         collaborator=collaborator,
     )
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="task.assignment_changed",
+        payload={"user_id": str(target_membership.user_id), "added": True},
+    )
     return assignment
 
 
@@ -413,6 +465,12 @@ def remove_task_assignment(*, access, actor, user_id, collaborator=False):
         recipient=recipient,
         assignment_id=assignment_id,
         collaborator=collaborator,
+    )
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="task.assignment_changed",
+        payload={"user_id": str(recipient.pk), "added": False},
     )
 
 
@@ -507,6 +565,12 @@ def set_subtask_completed(*, access, actor, subtask, completed):
         raise NotFound("Subtask not found.")
     subtask.is_completed = completed
     subtask.save(update_fields=("is_completed", "updated_at"))
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="subtask.updated",
+        payload={"subtask_id": str(subtask.pk)},
+    )
     return subtask
 
 
@@ -515,11 +579,18 @@ def create_subtask(*, access, actor, title):
     title = title.strip()
     if not title:
         raise ValidationError({"title": "Subtask title cannot be blank."})
-    return Subtask.objects.create(
+    subtask = Subtask.objects.create(
         task=access.task,
         created_by=actor,
         title=title,
     )
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="subtask.created",
+        payload={"subtask_id": str(subtask.pk)},
+    )
+    return subtask
 
 
 def update_subtask(*, access, actor, subtask_id, values):
@@ -535,6 +606,12 @@ def update_subtask(*, access, actor, subtask_id, values):
         setattr(subtask, field, value)
     if values:
         subtask.save(update_fields=(*values.keys(), "updated_at"))
+        _schedule_task_event(
+            project_id=access.project.pk,
+            task_id=access.task.pk,
+            event_type="subtask.updated",
+            payload={"subtask_id": str(subtask.pk)},
+        )
     return subtask
 
 
@@ -544,6 +621,12 @@ def delete_subtask(*, access, actor, subtask_id):
     if subtask is None:
         raise NotFound("Subtask not found.")
     subtask.delete()
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="subtask.deleted",
+        payload={"subtask_id": str(subtask_id)},
+    )
 
 
 def _set_comment_mentions(*, comment, project, mention_ids):
@@ -583,6 +666,12 @@ def _record_comment_activity(*, access, actor, comment, action, mention_ids=()):
         actor=actor,
         action=action,
         metadata=metadata,
+    )
+    _schedule_task_event(
+    project_id=access.project.pk,
+    task_id=access.task.pk,
+    event_type="comment.created",
+    payload={"comment_id": str(comment.pk)},
     )
 
 
@@ -653,6 +742,12 @@ def create_task_comment(
             comment=comment,
             recipient_ids=mention_ids,
         )
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="comment.updated",
+        payload={"comment_id": str(comment.pk)},
+    )
     return comment
 
 
@@ -706,6 +801,12 @@ def delete_task_comment(*, access, actor, comment_id):
         action=TaskActivity.Action.COMMENT_DELETED,
     )
     comment.delete()
+    _schedule_task_event(
+        project_id=access.project.pk,
+        task_id=access.task.pk,
+        event_type="comment.deleted",
+        payload={"comment_id": str(comment_id)},
+    )
 
 
 def create_label(*, project, actor, name):

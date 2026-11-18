@@ -90,6 +90,17 @@ def _check_board_version(board, expected_version):
 def _bump_board(board):
     board.version += 1
     board.save(update_fields=("version", "updated_at"))
+    from apps.realtime.events import schedule_project_event
+
+    schedule_project_event(
+        project_id=board.project_id,
+        event_type="board.updated",
+        payload={
+            "project_id": str(board.project_id),
+            "board_id": str(board.pk),
+            "version": board.version,
+        },
+    )
 
 
 def _record_activity(*, task, actor, action, metadata):

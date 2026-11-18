@@ -37,6 +37,7 @@ class WorkspaceReadSerializer(serializers.ModelSerializer):
             "description",
             "owner_id",
             "current_user_role",
+            "archived_at",
             "created_at",
             "updated_at",
         )
@@ -96,6 +97,7 @@ class WorkspaceMemberRoleSerializer(serializers.Serializer):
 
 class WorkspaceInvitationCreateSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
+    message = serializers.CharField(max_length=500, required=False, allow_blank=True)
     role = serializers.ChoiceField(
         choices=(
             WorkspaceMember.Role.ADMIN,
@@ -107,9 +109,15 @@ class WorkspaceInvitationCreateSerializer(serializers.Serializer):
     def validate_email(self, value):
         return value.strip().casefold()
 
+    def validate_message(self, value):
+        return value.strip()
+
 
 class WorkspaceInvitationSerializer(serializers.ModelSerializer):
     invited_by_id = serializers.UUIDField(read_only=True, allow_null=True)
+    invited_by_name = serializers.SerializerMethodField()
+    workspace_name = serializers.CharField(source="workspace.name", read_only=True)
+    workspace_id = serializers.UUIDField(read_only=True)
     status = serializers.SerializerMethodField()
     email_delivery = serializers.SerializerMethodField()
 
@@ -119,8 +127,12 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "role",
+            "message",
+            "workspace_id",
+            "workspace_name",
             "status",
             "invited_by_id",
+            "invited_by_name",
             "created_at",
             "expires_at",
             "accepted_at",
@@ -128,6 +140,11 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
             "email_delivery",
         )
         read_only_fields = fields
+
+    def get_invited_by_name(self, invitation):
+        if invitation.invited_by is None:
+            return ""
+        return invitation.invited_by.get_full_name() or invitation.invited_by.username
 
     def get_status(self, invitation):
         if (

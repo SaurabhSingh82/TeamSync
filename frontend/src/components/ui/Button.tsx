@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from 'react'
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'quiet'
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-teamsync-navy text-white hover:bg-teamsync-navy-light',
+  primary: 'teamsync-primary-button',
   secondary: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
   danger: 'bg-red-700 text-white hover:bg-red-800',
   quiet: 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',

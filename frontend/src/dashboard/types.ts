@@ -44,7 +44,7 @@ export interface DashboardSummary {
 
 export interface CalendarEvent {
   event_date: string
-  event_type: 'task_start' | 'task_deadline' | 'project_start' | 'project_deadline'
+  event_type: 'task_start' | 'task_deadline' | 'project_start' | 'project_deadline' | 'milestone_due'
   event_title: string
   object_id: string
   event_project_id: string

@@ -61,3 +61,4 @@ class CalendarEventSerializer(serializers.Serializer):
     event_project_name = serializers.CharField()
     event_status = serializers.CharField()
     event_priority = serializers.CharField()
+    event_description = serializers.CharField(allow_blank=True, required=False)
