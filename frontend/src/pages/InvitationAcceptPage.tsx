@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 
 import { useAuth } from '../auth/useAuth'
 import { getApiErrorMessage } from '../auth/errors'
 import {
   acceptWorkspaceInvitation,
+  rejectWorkspaceInvitation,
 } from '../workspaces/api'
 
 export function InvitationAcceptPage() {
@@ -16,29 +17,36 @@ export function InvitationAcceptPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState('')
-  const accepting = useRef(false)
-
-  useEffect(() => {
-    if (!token || !user || accepting.current) return
-    accepting.current = true
+  async function handleAccept() {
+    if (!token) return
     setBusy(true)
     setError('')
-    void acceptWorkspaceInvitation(token)
-      .then(({ workspace }) => {
-        window.history.replaceState(
-          null,
-          '',
-          `${location.pathname}${location.search}`,
-        )
-        setSuccess(`You joined ${workspace.name}.`)
-        navigate(`/workspaces/${workspace.id}`, { replace: true })
-      })
-      .catch((acceptError: unknown) => {
-        accepting.current = false
-        setError(getApiErrorMessage(acceptError))
-      })
-      .finally(() => setBusy(false))
-  }, [location.hash, location.pathname, location.search, navigate, token, user])
+    try {
+      const { workspace } = await acceptWorkspaceInvitation(token)
+      window.history.replaceState(null, '', `${location.pathname}${location.search}`)
+      setSuccess(`You joined ${workspace.name}.`)
+      navigate(`/workspaces/${workspace.id}`, { replace: true })
+    } catch (acceptError) {
+      setError(getApiErrorMessage(acceptError))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReject() {
+    if (!token) return
+    setBusy(true)
+    setError('')
+    try {
+      await rejectWorkspaceInvitation(token)
+      window.history.replaceState(null, '', `${location.pathname}${location.search}`)
+      setSuccess('Invitation rejected.')
+    } catch (rejectError) {
+      setError(getApiErrorMessage(rejectError))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -91,7 +99,24 @@ export function InvitationAcceptPage() {
       {success && <p className="mt-4 text-emerald-800" role="status">{success}</p>}
       {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
       {user ? (
-        busy && <p className="mt-5 text-sm text-slate-600" role="status">Accepting invitation…</p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
+            disabled={busy || Boolean(success)}
+            onClick={() => void handleAccept()}
+            type="button"
+          >
+            {busy ? 'Please wait…' : 'Accept invitation'}
+          </button>
+          <button
+            className="rounded-md border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 disabled:opacity-60"
+            disabled={busy || Boolean(success)}
+            onClick={() => void handleReject()}
+            type="button"
+          >
+            Reject invitation
+          </button>
+        </div>
       ) : (
         <form className="mt-7 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
           {mode === 'register' && (
@@ -147,7 +172,7 @@ export function InvitationAcceptPage() {
             />
           </label>
           <button
-            className="w-full rounded-md bg-slate-900 px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+            className="teamsync-primary-button w-full rounded-md px-4 py-2.5 font-semibold"
             disabled={busy}
             type="submit"
           >

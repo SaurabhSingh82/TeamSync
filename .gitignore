@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.docker.example
 
 # Python
 .venv/
@@ -10,9 +11,29 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 backend/media/
+/backend/private_attachments/
+/backend/staticfiles/
+/backend/.test-e2e.sqlite3*
 .pytest_cache/
 .coverage
 htmlcov/
+/ref/
+
+# Local credentials, private keys, and database backups
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.dump
+*.pgdump
+*.backup
+*.bak
+*.sql
+*.sql.gz
+.credentials/
+secrets.local.*
+credentials.local.*
 
 # Node
 node_modules/
@@ -20,6 +41,8 @@ dist/
 dist-ssr/
 *.local
 npm-debug.log*
+/frontend/playwright-report/
+/frontend/test-results/
 
 # Editor and operating-system files
 .vscode/*

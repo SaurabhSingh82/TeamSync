@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useEffect } from 'react'
 
 import { getApiErrorMessage } from '../auth/errors'
 import { useAuth } from '../auth/useAuth'
@@ -9,8 +10,29 @@ export function ProfilePage() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [preferences, setPreferences] = useState<Record<string, boolean>>({})
+  const [savingPreferences, setSavingPreferences] = useState(false)
+
+  useEffect(() => {
+    void apiClient.get<{ categories: Record<string, boolean> }>(
+      '/notifications/preferences/',
+    ).then(({ data }) => setPreferences(data.categories))
+  }, [])
 
   if (!user) return null
+
+  async function savePreferences() {
+    setSavingPreferences(true)
+    setError('')
+    try {
+      await apiClient.patch('/notifications/preferences/', { categories: preferences })
+      setSaved(true)
+    } catch (preferenceError) {
+      setError(getApiErrorMessage(preferenceError))
+    } finally {
+      setSavingPreferences(false)
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -107,7 +129,7 @@ export function ProfilePage() {
           </span>
           <input
             accept="image/jpeg,image/png,image/webp"
-            className="mt-2 block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2"
+            className="teamsync-file-input mt-2 block w-full text-sm text-slate-700"
             name="avatar"
             type="file"
           />
@@ -123,13 +145,45 @@ export function ProfilePage() {
           </p>
         )}
         <button
-          className="rounded-md bg-slate-900 px-4 py-2.5 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
           disabled={saving}
           type="submit"
         >
           {saving ? 'Saving…' : 'Save profile'}
         </button>
       </form>
+      <section className="mt-12 border-t border-slate-200 pt-6">
+        <h2 className="text-xl font-semibold text-slate-950">In-app notification preferences</h2>
+        <p className="mt-2 text-sm text-slate-600">Choose which notification categories are created for your account.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {[
+            ['task_assigned', 'Task assignments'],
+            ['task_comment', 'Task comments'],
+            ['task_mention', 'Mentions'],
+            ['workspace_invitation', 'Workspace invitations'],
+            ['invitation_accepted', 'Accepted invitations'],
+            ['deadline_today', 'Due today'],
+            ['deadline_overdue', 'Overdue tasks'],
+          ].map(([key, label]) => (
+            <label className="flex items-center gap-3 text-sm text-slate-700" key={key}>
+              <input
+                checked={preferences[key] !== false}
+                onChange={(event) => setPreferences((current) => ({ ...current, [key]: event.target.checked }))}
+                type="checkbox"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <button
+          className="mt-5 rounded-md border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 disabled:opacity-60"
+          disabled={savingPreferences}
+          onClick={() => void savePreferences()}
+          type="button"
+        >
+          {savingPreferences ? 'Saving…' : 'Save notification preferences'}
+        </button>
+      </section>
     </section>
   )
 }

@@ -70,7 +70,7 @@ export function LoginPage() {
           </p>
         )}
         <button
-          className="w-full rounded-md bg-slate-900 px-4 py-2.5 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="teamsync-primary-button w-full rounded-md px-4 py-2.5 font-semibold"
           disabled={submitting}
           type="submit"
         >

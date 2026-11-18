@@ -14,6 +14,7 @@ class Workspace(models.Model):
         on_delete=models.CASCADE,
         related_name="owned_workspaces",
     )
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -71,6 +72,7 @@ class WorkspaceInvitation(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         ACCEPTED = "accepted", "Accepted"
+        REJECTED = "rejected", "Rejected"
         REVOKED = "revoked", "Revoked"
         EXPIRED = "expired", "Expired"
 
@@ -94,6 +96,7 @@ class WorkspaceInvitation(models.Model):
     )
     email = models.EmailField()
     role = models.CharField(max_length=10, choices=INVITABLE_ROLES)
+    message = models.CharField(max_length=500, blank=True)
     token_hash = models.CharField(max_length=64, unique=True)
     status = models.CharField(
         max_length=10,
@@ -117,7 +120,9 @@ class WorkspaceInvitation(models.Model):
                 name="valid_workspace_invite_role",
             ),
             models.CheckConstraint(
-                condition=Q(status__in=("pending", "accepted", "revoked", "expired")),
+                condition=Q(
+                    status__in=("pending", "accepted", "rejected", "revoked", "expired")
+                ),
                 name="valid_workspace_invite_status",
             ),
         ]

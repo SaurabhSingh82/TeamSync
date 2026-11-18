@@ -1,83 +1,440 @@
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { useEffect, useState } from 'react'
+import {
+  Activity,
+  Bell,
+  CalendarDays,
+  ChartNoAxesColumnIncreasing,
+  CircleUserRound,
+  FolderKanban,
+  Home,
+  LayoutDashboard,
+  LogOut,
+  Mail,
+  Moon,
+  Search,
+  Settings,
+  Sun,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
 import { getApiErrorMessage } from '../../auth/errors'
 import { useAuth } from '../../auth/useAuth'
+import { Avatar } from '../ui/Avatar'
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector'
+import { listNotifications } from '../../notifications/api'
+import { notificationsUpdatedEvent } from '../../notifications/events'
+import teamsyncLogo from '../../assets/teamsync-logo.svg'
+import {
+  clearStoredWorkspaceId,
+  getStoredWorkspaceId,
+  setStoredWorkspaceId,
+  workspaceIdFromPath,
+} from '../../workspaces/activeWorkspace'
 
-const linkClassName = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-3 py-2 text-sm font-medium transition ${
+function navClassName(isActive: boolean) {
+  return `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
     isActive
       ? 'bg-slate-100 text-slate-950'
       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
   }`
+}
+
+type SidebarItem = {
+  label: string
+  icon: LucideIcon
+  to?: string
+  workspacePath?: (workspaceId: string) => string
+  end?: boolean
+  notifications?: boolean
+}
+
+type Theme = 'light' | 'dark'
+
+let unreadCountRequest: Promise<number> | null = null
+
+function loadUnreadNotificationCount() {
+  unreadCountRequest ??= listNotifications({ unreadOnly: true, pageSize: 1 })
+    .then((result) => result.count)
+    .finally(() => {
+      unreadCountRequest = null
+    })
+  return unreadCountRequest
+}
+
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'light'
+  return window.localStorage.getItem('teamsync.theme') === 'dark' ? 'dark' : 'light'
+}
+
+const sidebarItems: SidebarItem[] = [
+  { label: 'Home', icon: Home, to: '/', end: true },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Calendar', icon: CalendarDays, to: '/calendar' },
+  { label: 'Analytics', icon: ChartNoAxesColumnIncreasing, to: '/analytics' },
+  { label: 'Search', icon: Search, to: '/search' },
+  { label: 'Notifications', icon: Bell, to: '/notifications', notifications: true },
+  { label: 'Invitations', icon: Mail, to: '/invitations' },
+  {
+    label: 'Projects',
+    icon: FolderKanban,
+    workspacePath: (workspaceId) => `/workspaces/${workspaceId}/projects`,
+  },
+  {
+    label: 'Members',
+    icon: Users,
+    workspacePath: (workspaceId) => `/workspaces/${workspaceId}/members`,
+  },
+  {
+    label: 'Activity',
+    icon: Activity,
+    workspacePath: (workspaceId) => `/workspaces/${workspaceId}/activity`,
+  },
+  {
+    label: 'Workspace settings',
+    icon: Settings,
+    workspacePath: (workspaceId) => `/workspaces/${workspaceId}`,
+    end: true,
+  },
+  { label: 'Profile', icon: CircleUserRound, to: '/profile' },
+]
 
 export function AppLayout() {
   const { error: authError, loading, logout, user } = useAuth()
   const [logoutError, setLogoutError] = useState('')
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationError, setNotificationError] = useState('')
+  const [hoveredSidebarItem, setHoveredSidebarItem] = useState<string | null>(null)
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const location = useLocation()
+  const routeWorkspaceId = workspaceIdFromPath(location.pathname)
+  const activeWorkspaceId = routeWorkspaceId ?? (user ? getStoredWorkspaceId(user.id) : null)
+
+  useEffect(() => {
+    if (!user) return
+    const selectedWorkspaceId = routeWorkspaceId ?? getStoredWorkspaceId(user.id)
+    if (selectedWorkspaceId) setStoredWorkspaceId(user.id, selectedWorkspaceId)
+  }, [routeWorkspaceId, user])
+
+  useEffect(() => {
+    if (!user || loading) return
+    let active = true
+    const refreshUnreadCount = async () => {
+      try {
+        const count = await loadUnreadNotificationCount()
+        if (active) {
+          setUnreadCount(count)
+          setNotificationError('')
+        }
+      } catch (error) {
+        if (active) {
+          setNotificationError(
+            `Notification count could not be refreshed: ${getApiErrorMessage(error)}`,
+          )
+        }
+      }
+    }
+    void refreshUnreadCount()
+    const intervalId = window.setInterval(() => void refreshUnreadCount(), 60_000)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [loading, user])
+
+  useEffect(() => {
+    const handleNotificationsUpdated = (event: Event) => {
+      const { unreadCount } = (event as CustomEvent<{ unreadCount: number }>).detail
+      if (typeof unreadCount === 'number') setUnreadCount(unreadCount)
+    }
+    window.addEventListener(notificationsUpdatedEvent, handleNotificationsUpdated)
+    return () => window.removeEventListener(notificationsUpdatedEvent, handleNotificationsUpdated)
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    window.localStorage.setItem('teamsync.theme', theme)
+  }, [theme])
 
   async function handleLogout() {
     setLogoutError('')
     try {
       await logout()
+      clearStoredWorkspaceId(user?.id ?? '')
     } catch (error) {
       setLogoutError(getApiErrorMessage(error))
     }
   }
 
+  if (!user || loading) {
+    return (
+      <div className="min-h-screen bg-teamsync-canvas">
+        <header className="theme-header border-b border-slate-200 bg-white">
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
+            <Link className="flex items-center gap-2" to="/">
+              <img alt="TeamSync" className="size-9 object-contain" src={teamsyncLogo} />
+              <span className="teamsync-brand-name">TeamSync</span>
+            </Link>
+            {!loading && (
+              <nav aria-label="Account navigation" className="flex items-center gap-2">
+                <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+                <NavLink className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" to="/login">
+                  Sign in
+                </NavLink>
+                <NavLink className="teamsync-primary-button rounded-lg px-3 py-2 text-sm font-semibold" to="/register">
+                  Create account
+                </NavLink>
+              </nav>
+            )}
+          </div>
+        </header>
+        <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">
+          {authError && (
+            <p className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              {authError}
+            </p>
+          )}
+          <Outlet />
+        </main>
+      </div>
+    )
+  }
+
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ')
+  const renderSidebarItem = (item: SidebarItem, variant: 'icon' | 'label') => {
+    const Icon = item.icon
+    const to = item.workspacePath
+      ? activeWorkspaceId
+        ? item.workspacePath(activeWorkspaceId)
+        : null
+      : item.to ?? null
+    const commonClassName =
+      variant === 'icon'
+        ? 'grid size-11 place-items-center rounded-xl transition'
+        : 'flex h-11 items-center rounded-lg px-3 text-sm font-medium transition'
+
+    if (!to) {
+      return (
+        <span
+          aria-disabled="true"
+          className={`${commonClassName} ${
+            variant === 'icon'
+              ? hoveredSidebarItem === item.label
+                ? 'bg-white/10 text-white'
+                : 'text-slate-500'
+              : hoveredSidebarItem === item.label
+                ? 'bg-slate-50 text-slate-400'
+                : 'text-slate-300'
+          }`}
+          key={item.label}
+          onMouseEnter={() => setHoveredSidebarItem(item.label)}
+          onMouseLeave={() => setHoveredSidebarItem(null)}
+          title={item.label}
+        >
+          {variant === 'icon' && <Icon aria-hidden="true" size={19} />}
+          {variant === 'label' && item.label}
+        </span>
+      )
+    }
+
+    return (
+      <NavLink
+        aria-label={item.label}
+        className={({ isActive }) =>
+          variant === 'icon'
+            ? `${commonClassName} ${
+                isActive
+                  ? 'bg-white text-teamsync-navy'
+                  : hoveredSidebarItem === item.label
+                    ? 'bg-white/10 text-white'
+                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              }`
+            : `${commonClassName} ${
+                isActive
+                  ? navClassName(true)
+                  : hoveredSidebarItem === item.label
+                    ? 'bg-slate-50 text-slate-950'
+                    : navClassName(false)
+              }`
+        }
+        end={item.end}
+        key={item.label}
+        onMouseEnter={() => setHoveredSidebarItem(item.label)}
+        onMouseLeave={() => setHoveredSidebarItem(null)}
+        title={variant === 'icon' ? item.label : undefined}
+        to={to}
+      >
+        {variant === 'icon' ? (
+          <span className="relative">
+            <Icon aria-hidden="true" size={19} />
+          {variant === 'icon' && item.notifications && unreadCount > 0 && (
+            <span className="absolute -right-2 -top-2 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+          </span>
+        ) : (
+          item.label
+        )}
+      </NavLink>
+    )
+  }
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-          <NavLink
-            to="/"
-            className="text-lg font-semibold tracking-tight text-slate-950"
-          >
-            TeamSync
-          </NavLink>
-          <nav aria-label="Main navigation" className="flex items-center gap-1">
-            <NavLink to="/" end className={linkClassName}>
+    <div className="min-h-screen bg-teamsync-canvas text-slate-900">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[72px] flex-col items-center bg-teamsync-navy py-5 text-white md:flex">
+        <Link
+          aria-label="TeamSync home"
+          className="mb-8 grid size-10 place-items-center"
+          to="/"
+        >
+          <img alt="" className="size-9 object-contain" src={teamsyncLogo} />
+        </Link>
+        <nav aria-label="Primary navigation" className="flex flex-1 flex-col items-center gap-1">
+          {sidebarItems.map((item) => renderSidebarItem(item, 'icon'))}
+        </nav>
+        <button
+          aria-label="Sign out"
+          className="grid size-11 place-items-center rounded-xl text-slate-300 transition hover:bg-white/10 hover:text-white"
+          onClick={() => void handleLogout()}
+          title="Sign out"
+          type="button"
+        >
+          <LogOut aria-hidden="true" size={19} />
+        </button>
+      </aside>
+
+      <aside className="fixed inset-y-0 left-[72px] z-20 hidden w-64 flex-col border-r border-slate-200 bg-white px-4 py-5 md:flex">
+        <div className="teamsync-brand-name mb-8 flex h-10 items-center px-3 text-lg">
+          TeamSync
+        </div>
+        <nav aria-label="Workspace navigation" className="flex flex-1 flex-col gap-1">
+          {sidebarItems.map((item) => renderSidebarItem(item, 'label'))}
+        </nav>
+        <Link className="mt-auto rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950" to="/workspaces/new">
+          + New workspace
+        </Link>
+      </aside>
+
+      <div className="min-h-screen md:pl-[328px]">
+        <header className="theme-header sticky top-0 z-10 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+          <div className="flex min-h-[68px] items-center justify-between gap-4 px-5 sm:px-8">
+            <div className="flex min-w-0 items-center gap-3 md:hidden">
+              <Link aria-label="TeamSync home" className="grid size-9 shrink-0 place-items-center" to="/">
+                <img alt="" className="size-8 object-contain" src={teamsyncLogo} />
+              </Link>
+              <span className="teamsync-brand-name">TeamSync</span>
+            </div>
+            <div className="min-w-0">
+              <WorkspaceSelector selectId="workspace-selector" userId={user.id} />
+            </div>
+            <div className="ml-auto flex items-center gap-3">
+              <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+              <Link
+                aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                className="relative grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+                to="/notifications"
+              >
+                <Bell aria-hidden="true" size={19} />
+                {unreadCount > 0 && (
+                  <span className="absolute right-0 top-0 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+              <Avatar
+                alt={fullName || user.username}
+                className="size-9"
+                name={fullName || user.username}
+                src={user.avatar}
+              />
+              <div className="hidden max-w-48 sm:block">
+                <p className="truncate text-sm font-semibold text-slate-800">{fullName || user.username}</p>
+                <p className="truncate text-xs text-slate-500">{user.email}</p>
+              </div>
+              <Link
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 md:hidden"
+                to="/profile"
+              >
+                Profile
+              </Link>
+              <button
+                aria-label="Sign out"
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 md:hidden"
+                onClick={() => void handleLogout()}
+                type="button"
+              >
+                <LogOut aria-hidden="true" className="sm:hidden" size={17} />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </div>
+          </div>
+          <nav aria-label="Mobile navigation" className="flex gap-2 overflow-x-auto px-5 pb-3 md:hidden">
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} end to="/">
               Home
             </NavLink>
-            <NavLink to="/dashboard" className={linkClassName}>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/dashboard">
               Dashboard
             </NavLink>
-            {!loading &&
-              (user ? (
-                <>
-                  <WorkspaceSelector userId={user.id} />
-                  <NavLink to="/profile" className={linkClassName}>
-                    Profile
-                  </NavLink>
-                  <button
-                    className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                    onClick={() => void handleLogout()}
-                    type="button"
-                  >
-                    Sign out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <NavLink to="/login" className={linkClassName}>
-                    Sign in
-                  </NavLink>
-                  <NavLink to="/register" className={linkClassName}>
-                    Create account
-                  </NavLink>
-                </>
-              ))}
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/calendar">
+              Calendar
+            </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/analytics">
+              Analytics
+            </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/search">
+              Search
+            </NavLink>
+            <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to="/notifications">
+              Notifications{unreadCount > 0 ? ` (${unreadCount > 99 ? '99+' : unreadCount})` : ''}
+            </NavLink>
+            {activeWorkspaceId && (
+              <>
+              <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to={`/workspaces/${activeWorkspaceId}/projects`}>
+                Projects
+              </NavLink>
+              <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to={`/workspaces/${activeWorkspaceId}/members`}>
+                Members
+              </NavLink>
+              <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} to={`/workspaces/${activeWorkspaceId}/activity`}>
+                Activity
+              </NavLink>
+              <NavLink className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50'}`} end to={`/workspaces/${activeWorkspaceId}`}>
+                Settings
+              </NavLink>
+              </>
+            )}
+            <Link className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" to="/workspaces/new">
+              New workspace
+            </Link>
           </nav>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8">
-        {(authError || logoutError) && (
-          <p role="alert" className="mb-6 rounded-md bg-red-50 p-3 text-sm text-red-800">
-            {logoutError || authError}
-          </p>
-        )}
-        <Outlet />
-      </main>
+        </header>
+        <main className="mx-auto w-full max-w-[1440px] px-5 py-8 sm:px-8 lg:py-10">
+          {(authError || logoutError || notificationError) && (
+            <p className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              {logoutError || authError || notificationError}
+            </p>
+          )}
+          <Outlet />
+        </main>
+      </div>
     </div>
+  )
+}
+
+function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  const isDark = theme === 'dark'
+  const Icon = isDark ? Sun : Moon
+  return (
+    <button
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+      onClick={onToggle}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      type="button"
+    >
+      <Icon aria-hidden="true" size={19} />
+    </button>
   )
 }

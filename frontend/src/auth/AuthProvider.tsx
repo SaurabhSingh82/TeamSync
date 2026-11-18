@@ -11,6 +11,7 @@ import { apiClient, ensureCsrfToken } from '../lib/api/client'
 import { AuthContext } from './context'
 import { getApiErrorMessage } from './errors'
 import type { AuthContextValue, UserProfile } from './types'
+import { clearStoredWorkspaceId } from '../workspaces/activeWorkspace'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null)
@@ -71,10 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
+    const currentUserId = user?.id
     await ensureCsrfToken()
     await apiClient.post('/auth/logout/')
     setUser(null)
-  }, [])
+    if (currentUserId) clearStoredWorkspaceId(currentUserId)
+  }, [user])
 
   const value = useMemo<AuthContextValue>(
     () => ({ user, loading, error, login, register, logout, refreshUser, setUser }),

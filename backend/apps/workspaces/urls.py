@@ -2,10 +2,15 @@ from django.urls import path
 
 from apps.workspaces.views import (
     AcceptWorkspaceInvitationView,
+    LeaveWorkspaceView,
     OwnershipTransferView,
+    RejectWorkspaceInvitationView,
+    ReceivedInvitationActionView,
+    ReceivedInvitationListView,
     WorkspaceDetailView,
     WorkspaceInvitationActionView,
     WorkspaceInvitationListCreateView,
+    WorkspaceLifecycleActionView,
     WorkspaceListCreateView,
     WorkspaceMemberDetailView,
     WorkspaceMemberListView,
@@ -18,6 +23,23 @@ urlpatterns = [
         "workspaces/<uuid:workspace_id>/",
         WorkspaceDetailView.as_view(),
         name="workspace-detail",
+    ),
+    path(
+        "workspaces/<uuid:workspace_id>/leave/",
+        LeaveWorkspaceView.as_view(),
+        name="workspace-leave",
+    ),
+    path(
+        "workspaces/<uuid:workspace_id>/archive/",
+        WorkspaceLifecycleActionView.as_view(),
+        {"action": "archive"},
+        name="workspace-archive",
+    ),
+    path(
+        "workspaces/<uuid:workspace_id>/restore/",
+        WorkspaceLifecycleActionView.as_view(),
+        {"action": "restore"},
+        name="workspace-restore",
     ),
     path(
         "workspaces/<uuid:workspace_id>/members/",
@@ -48,5 +70,20 @@ urlpatterns = [
         "invitations/accept/",
         AcceptWorkspaceInvitationView.as_view(),
         name="workspace-invitation-accept",
+    ),
+    path(
+        "invitations/",
+        ReceivedInvitationListView.as_view(),
+        name="received-invitations",
+    ),
+    path(
+        "invitations/<uuid:invitation_id>/<str:action>/",
+        ReceivedInvitationActionView.as_view(),
+        name="received-invitation-action",
+    ),
+    path(
+        "invitations/reject/",
+        RejectWorkspaceInvitationView.as_view(),
+        name="workspace-invitation-reject",
     ),
 ]

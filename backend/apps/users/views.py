@@ -212,7 +212,7 @@ class PasswordResetRequestView(APIView):
     authentication_classes = [CookieAuthChallenge]
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "auth_email"
+    throttle_scope = "auth_email_v2"
 
     def post(self, request):
         enforce_csrf(request._request)
@@ -231,7 +231,7 @@ class PasswordResetConfirmView(APIView):
     authentication_classes = [CookieAuthChallenge]
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "auth_email"
+    throttle_scope = "auth_email_v2"
 
     def post(self, request):
         enforce_csrf(request._request)
@@ -268,7 +268,7 @@ class EmailVerificationView(APIView):
     authentication_classes = [CookieAuthChallenge]
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "auth_email"
+    throttle_scope = "auth_email_v2"
 
     def post(self, request):
         enforce_csrf(request._request)

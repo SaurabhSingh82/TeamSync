@@ -1,8 +1,12 @@
 # TeamSync
 
 TeamSync is a collaborative project-management application. This repository
-contains the engineering foundation only; product modules will be added in
-separate implementation checkpoints.
+contains the engineering foundation and M01-M10 modules: account management,
+workspaces, projects, task management, Kanban boards, collaboration, private
+task/comment attachments, notifications, workspace activity, dashboard,
+calendar, analytics, global search, and settings. M11 hardening and deployment
+is implemented; the end-to-end integration audit and real-service verification
+are in progress.
 
 ## Repository layout
 
@@ -40,8 +44,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-local-postgr
 
 The script sets the user environment variable `TEAMSYNC_ENV_FILE` to that
 private environment file. Restart VS Code after setup so new terminals inherit
-it. For a manual setup, copy `.env.example` to `.env` and replace its
-placeholders; `.env` is ignored by Git.
+it. Add Gmail SMTP and frontend URL values to that file. If
+`TEAMSYNC_ENV_FILE` is not set and there is no existing local configuration,
+copy `.env.example` to `.env` and replace its placeholders; `.env` is ignored
+by Git. Never share credentials in chat. See the
+[local configuration guide](docs/local-configuration.md) for all settings and
+the [integration inventory](docs/application-integration-inventory.md) for
+verified scope and remaining gaps.
 
 PostgreSQL must listen only on `127.0.0.1:5432` for local development. Never
 use local trust authentication or the development database credentials in
@@ -73,12 +82,31 @@ The Vite development server runs at `http://localhost:5173` and proxies `/api`
 requests to the backend at `http://127.0.0.1:8000`. Set
 `VITE_API_BASE_URL` in the root `.env` to override the API base URL.
 
-Production build and lint:
+### Docker Compose (local development)
+
+Docker Desktop with Compose v2 can run PostgreSQL, Django, and Vite together.
+Copy `.env.docker.example` to `.env.docker`, replace its local-only values,
+then run:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```
+
+Open `http://localhost:5173`. See
+[deployment-and-operations.md](docs/deployment-and-operations.md) for shutdown,
+production security, HTTPS, logs, health checks, and backup guidance. Never
+expose the local Compose services or sample values to the internet.
+
+Frontend tests, lint, and production build:
 
 ```powershell
 Set-Location frontend
 npm run build
 npm run lint
+npm test
+npx playwright install chromium
+npm run test:e2e
 ```
 
 Backend API tests use an isolated in-memory SQLite database so the local
@@ -86,9 +114,11 @@ application role does not need `CREATEDB`:
 
 ```powershell
 Set-Location backend
-..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.core --settings=config.test_settings
+..\.venv\Scripts\python.exe manage.py test apps.users apps.workspaces apps.projects apps.tasks apps.notifications apps.dashboard apps.search apps.core --settings=config.test_settings
 ```
 
+This is the complete SQLite-compatible backend suite, including `apps.tasks`,
+`apps.notifications`, `apps.dashboard`, and `apps.search`.
 PostgreSQL-specific row-lock and concurrency tests run against a separate test
 database (`test_teamsync` with the default local database). The configured
 PostgreSQL role needs `CREATEDB` for the first run, or an administrator can
@@ -97,6 +127,9 @@ pre-provisioned test database without dropping it:
 
 ```powershell
 ..\.venv\Scripts\python.exe manage.py test apps.workspaces.tests_postgres --settings=config.postgres_test_settings --keepdb
+..\.venv\Scripts\python.exe manage.py test apps.projects.tests_postgres --settings=config.postgres_test_settings --keepdb
+..\.venv\Scripts\python.exe manage.py test apps.tasks.tests_postgres --settings=config.postgres_test_settings --keepdb
+..\.venv\Scripts\python.exe manage.py test apps.notifications.tests_postgres --settings=config.postgres_test_settings --keepdb
 ```
 
 Workspace invitation emails use a transactional outbox. Creation returns
@@ -113,16 +146,38 @@ and is not written to redirected output or application logs. Delivery uses an
 at-least-once outbox; an interruption after the mail server accepts a message
 can result in a duplicate email after the claim lease expires.
 
+Deadline notifications are database-backed and safe to dispatch repeatedly.
+Run the reminder command on a schedule (for example, once each morning):
+
+```powershell
+..\.venv\Scripts\python.exe manage.py send_deadline_reminders
+```
+
 ## Foundation notes
 
 - The custom UUID-based user model is configured before the first database
   migration. M01 account fields and APIs are in the `users` app; M02 workspace
-  management and invitations are in the `workspaces` app.
+  management and invitations are in `workspaces`; M03 projects and project
+  membership are in `projects`; M04-M07 task, collaboration, and attachment
+  features are in `tasks`.
 - Authentication uses HttpOnly JWT cookies, CSRF protection, rotating refresh
   tokens, and a console email backend for local reset/verification flows. See
   [authentication.md](docs/authentication.md).
 - Workspace membership and invitation behavior is documented in
   [workspaces.md](docs/workspaces.md).
-- Projects, tasks, and later product modules are not implemented yet.
+- Project lifecycle and project membership are documented in
+  [projects.md](docs/projects.md); task management, Kanban boards, comments,
+  mentions, task activity, and private attachments are documented in
+  [tasks.md](docs/tasks.md). Notifications and the workspace activity feed are
+  documented in [notifications.md](docs/notifications.md). Dashboard,
+  calendar, and analytics are documented in
+  [dashboard-calendar-analytics.md](docs/dashboard-calendar-analytics.md).
+  Global search, filters, settings, and usability are documented in
+  [search-settings-usability.md](docs/search-settings-usability.md).
+- M11 testing and deployment procedures are documented in
+  [deployment-and-operations.md](docs/deployment-and-operations.md).
+- The current source-based integration assessment is in
+  [application-integration-inventory.md](docs/application-integration-inventory.md);
+  local service and secret setup is in [local-configuration.md](docs/local-configuration.md).
 - Keep `.env` and all real credentials out of version control. The checked-in
   `.env.example` contains placeholders only.

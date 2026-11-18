@@ -20,14 +20,14 @@ export function HomePage() {
       {user ? (
         <Link
           to="/workspaces/new"
-          className="mt-8 inline-flex rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          className="teamsync-primary-button mt-8 inline-flex rounded-md px-4 py-2.5 text-sm font-semibold transition"
         >
           Create a workspace
         </Link>
       ) : (
         <Link
           to="/register"
-          className="mt-8 inline-flex rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          className="teamsync-primary-button mt-8 inline-flex rounded-md px-4 py-2.5 text-sm font-semibold transition"
         >
           Get started
         </Link>

@@ -48,6 +48,11 @@ def get_workspace_membership(user, workspace_id, *, lock=False):
     return workspace, membership
 
 
+def require_active_workspace(workspace):
+    if workspace.archived_at is not None:
+        raise PermissionDenied("Archived workspaces are read-only.")
+
+
 def require_role(membership, allowed_roles):
     if membership.role not in allowed_roles:
         raise PermissionDenied("You do not have permission to perform this action.")
@@ -105,6 +110,12 @@ def send_workspace_invitation(invitation, token):
         f"{settings.FRONTEND_BASE_URL}/invitations/accept"
         f"#token={quote(token, safe='')}"
     )
+    inviter = invitation.invited_by
+    inviter_name = (
+        inviter.get_full_name() or inviter.username
+        if inviter is not None
+        else "A TeamSync workspace administrator"
+    )
     try:
         return (
             send_mail(
@@ -112,6 +123,9 @@ def send_workspace_invitation(invitation, token):
                 message=(
                     f"You have been invited to join {invitation.workspace.name} as "
                     f"{invitation.get_role_display()}.\n\n"
+                    f"{inviter_name} "
+                    "sent you this message:\n"
+                    f"{invitation.message or '(No personal message)'}\n\n"
                     f"Sign in or create an account with {invitation.email}, then accept "
                     f"the invitation here:\n\n{invite_url}\n\n"
                     "This invitation expires in 7 days."
@@ -125,7 +139,8 @@ def send_workspace_invitation(invitation, token):
         return False
 
 
-def create_invitation(*, workspace, inviter, email, role):
+def create_invitation(*, workspace, inviter, email, role, message=""):
+    require_active_workspace(workspace)
     normalized_email = normalize_email(email)
     now = timezone.now()
     WorkspaceInvitation.objects.filter(
@@ -157,18 +172,30 @@ def create_invitation(*, workspace, inviter, email, role):
                 invited_by=inviter,
                 email=normalized_email,
                 role=role,
+                message=message.strip(),
                 token_hash=hash_invitation_token(new_invitation_token()),
                 expires_at=now + INVITATION_LIFETIME,
             )
             WorkspaceInvitationEmail.objects.create(
                 invitation=invitation,
             )
+            from apps.notifications.services import notify_workspace_invitation
+
+            notify_workspace_invitation(invitation=invitation)
+            if settings.INVITATION_SEND_IMMEDIATELY:
+                transaction.on_commit(
+                    lambda: dispatch_pending_invitation_emails(
+                        invitation_ids=(invitation.pk,),
+                        limit=1,
+                    )
+                )
     except IntegrityError as exc:
         raise Conflict("A pending invitation already exists for this email.") from exc
     return invitation
 
 
 def resend_invitation(*, invitation):
+    require_active_workspace(invitation.workspace)
     if invitation.status not in (
         WorkspaceInvitation.Status.PENDING,
         WorkspaceInvitation.Status.EXPIRED,
@@ -207,10 +234,17 @@ def resend_invitation(*, invitation):
             "updated_at",
         )
     )
+    if settings.INVITATION_SEND_IMMEDIATELY:
+        transaction.on_commit(
+            lambda: dispatch_pending_invitation_emails(
+                invitation_ids=(invitation.pk,),
+                limit=1,
+            )
+        )
     return invitation
 
 
-def dispatch_pending_invitation_emails(*, limit=100):
+def dispatch_pending_invitation_emails(*, limit=100, invitation_ids=None):
     if limit < 1:
         raise ValueError("The outbox batch limit must be positive.")
 
@@ -224,10 +258,13 @@ def dispatch_pending_invitation_emails(*, limit=100):
         claimed_at=None,
         updated_at=timezone.now(),
     )
+    pending_query = WorkspaceInvitationEmail.objects.filter(
+        status=WorkspaceInvitationEmail.Status.PENDING
+    )
+    if invitation_ids is not None:
+        pending_query = pending_query.filter(invitation_id__in=invitation_ids)
     pending = list(
-        WorkspaceInvitationEmail.objects.filter(
-            status=WorkspaceInvitationEmail.Status.PENDING
-        )
+        pending_query
         .order_by("created_at", "pk")
         .values_list("pk", "invitation_id")[:limit]
     )
@@ -264,9 +301,14 @@ def dispatch_pending_invitation_emails(*, limit=100):
             if (
                 invitation.status != WorkspaceInvitation.Status.PENDING
                 or invitation.expires_at <= timezone.now()
+                or invitation.workspace.archived_at is not None
             ):
                 delivery.status = WorkspaceInvitationEmail.Status.FAILED
-                delivery.last_error = "Invitation is no longer active."
+                delivery.last_error = (
+                    "Workspace is archived."
+                    if invitation.workspace.archived_at is not None
+                    else "Invitation is no longer active."
+                )
                 delivery.save(
                     update_fields=("status", "last_error", "updated_at")
                 )
@@ -344,12 +386,130 @@ def dispatch_pending_invitation_emails(*, limit=100):
 
 
 def revoke_invitation(*, invitation):
+    require_active_workspace(invitation.workspace)
     if invitation.status != WorkspaceInvitation.Status.PENDING:
         raise Conflict("Only pending invitations can be revoked.")
     invitation.status = WorkspaceInvitation.Status.REVOKED
     invitation.revoked_at = timezone.now()
     invitation.save(update_fields=("status", "revoked_at"))
     return invitation
+
+
+def reject_invitation(*, user, token):
+    token_digest = hash_invitation_token(token)
+    with transaction.atomic():
+        invitation_ref = WorkspaceInvitation.objects.filter(
+            token_hash=token_digest
+        ).only("pk", "workspace_id").first()
+        if invitation_ref is None:
+            raise ValidationError({"token": "This invitation is invalid or no longer active."})
+        Workspace.objects.select_for_update().get(pk=invitation_ref.workspace_id)
+        invitation = WorkspaceInvitation.objects.select_for_update().get(
+            pk=invitation_ref.pk
+        )
+        if (
+            invitation.token_hash != token_digest
+            or invitation.status != WorkspaceInvitation.Status.PENDING
+            or invitation.expires_at <= timezone.now()
+        ):
+            raise ValidationError({"token": "This invitation is invalid or no longer active."})
+        if normalize_email(user.email) != normalize_email(invitation.email):
+            raise PermissionDenied("Sign in with the email address that received this invitation.")
+
+        invitation.status = WorkspaceInvitation.Status.REJECTED
+        invitation.save(update_fields=("status",))
+        from apps.notifications.services import notify_invitation_rejected
+
+        notify_invitation_rejected(invitation=invitation, user=user)
+    return invitation
+
+
+def _accept_locked_invitation(*, user, workspace, invitation):
+    if workspace.archived_at is not None:
+        raise ValidationError({"invitation": "This invitation is no longer active."})
+    if invitation.status != WorkspaceInvitation.Status.PENDING:
+        raise ValidationError({"invitation": "This invitation is no longer active."})
+    if invitation.expires_at <= timezone.now():
+        invitation.status = WorkspaceInvitation.Status.EXPIRED
+        invitation.save(update_fields=("status",))
+        raise ValidationError({"invitation": "This invitation has expired."})
+    if normalize_email(user.email) != normalize_email(invitation.email):
+        raise PermissionDenied("Sign in with the email address that received this invitation.")
+    if WorkspaceMember.objects.filter(workspace=workspace, user=user).exists():
+        raise Conflict("You are already a member of this workspace.")
+    try:
+        membership = WorkspaceMember.objects.create(
+            workspace=workspace,
+            user=user,
+            role=invitation.role,
+        )
+    except IntegrityError as exc:
+        raise Conflict("You are already a member of this workspace.") from exc
+    invitation.status = WorkspaceInvitation.Status.ACCEPTED
+    invitation.accepted_at = timezone.now()
+    invitation.save(update_fields=("status", "accepted_at"))
+    from apps.realtime.events import schedule_workspace_event
+
+    schedule_workspace_event(
+        workspace_id=workspace.pk,
+        event_type="workspace.member_added",
+        payload={"user_id": str(user.pk), "role": invitation.role},
+    )
+    from apps.notifications.services import notify_invitation_accepted
+
+    notify_invitation_accepted(invitation=invitation, user=user)
+    return membership
+
+
+def accept_invitation_by_id(*, user, invitation_id):
+    with transaction.atomic():
+        invitation = (
+            WorkspaceInvitation.objects.select_for_update()
+            .filter(pk=invitation_id)
+            .first()
+        )
+        if invitation is None:
+            raise NotFound("Invitation not found.")
+        workspace = Workspace.objects.select_for_update().get(pk=invitation.workspace_id)
+        return _accept_locked_invitation(
+            user=user,
+            workspace=workspace,
+            invitation=invitation,
+        )
+
+
+def reject_invitation_by_id(*, user, invitation_id):
+    with transaction.atomic():
+        invitation = (
+            WorkspaceInvitation.objects.select_for_update()
+            .select_related("workspace")
+            .filter(pk=invitation_id)
+            .first()
+        )
+        if invitation is None:
+            raise NotFound("Invitation not found.")
+        workspace = Workspace.objects.select_for_update().get(pk=invitation.workspace_id)
+        if invitation.status != WorkspaceInvitation.Status.PENDING:
+            raise Conflict("This invitation has already been processed.")
+        if invitation.expires_at <= timezone.now():
+            invitation.status = WorkspaceInvitation.Status.EXPIRED
+            invitation.save(update_fields=("status",))
+            raise ValidationError({"invitation": "This invitation has expired."})
+        if normalize_email(user.email) != normalize_email(invitation.email):
+            raise PermissionDenied("Sign in with the email address that received this invitation.")
+        invitation.status = WorkspaceInvitation.Status.REJECTED
+        invitation.save(update_fields=("status",))
+        from apps.notifications.services import notify_invitation_rejected
+
+        notify_invitation_rejected(invitation=invitation, user=user)
+        from apps.realtime.events import schedule_workspace_event
+
+        schedule_workspace_event(
+            workspace_id=workspace.pk,
+            event_type="workspace.invitation_rejected",
+            payload={"invitation_id": str(invitation.pk), "user_id": str(user.pk)},
+        )
+        return invitation
 
 
 def accept_invitation(*, user, token):
@@ -368,31 +528,13 @@ def accept_invitation(*, user, token):
         )
         if invitation.token_hash != token_digest:
             raise ValidationError({"token": "This invitation is invalid or no longer active."})
-        if invitation.status != WorkspaceInvitation.Status.PENDING:
-            raise ValidationError({"token": "This invitation is invalid or no longer active."})
-
-        if invitation.expires_at <= timezone.now():
-            raise ValidationError({"token": "This invitation is invalid or no longer active."})
-
         if normalize_email(user.email) != normalize_email(invitation.email):
             raise PermissionDenied("Sign in with the email address that received this invitation.")
-
-        if WorkspaceMember.objects.filter(workspace=workspace, user=user).exists():
-            raise Conflict("You are already a member of this workspace.")
-
-        try:
-            with transaction.atomic():
-                membership = WorkspaceMember.objects.create(
-                    workspace=workspace,
-                    user=user,
-                    role=invitation.role,
-                )
-        except IntegrityError as exc:
-            raise Conflict("You are already a member of this workspace.") from exc
-
-        invitation.status = WorkspaceInvitation.Status.ACCEPTED
-        invitation.accepted_at = timezone.now()
-        invitation.save(update_fields=["status", "accepted_at"])
+        membership = _accept_locked_invitation(
+            user=user,
+            workspace=workspace,
+            invitation=invitation,
+        )
     return membership
 
 

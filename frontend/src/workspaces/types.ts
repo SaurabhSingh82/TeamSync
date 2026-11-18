@@ -1,6 +1,6 @@
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer'
 export type WorkspaceInvitableRole = Exclude<WorkspaceRole, 'owner'>
-export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired'
+export type InvitationStatus = 'pending' | 'accepted' | 'rejected' | 'revoked' | 'expired'
 export type InvitationEmailStatus =
   | 'pending'
   | 'sending'
@@ -14,6 +14,7 @@ export interface Workspace {
   description: string
   owner_id: string
   current_user_role: WorkspaceRole
+  archived_at: string | null
   created_at: string
   updated_at: string
 }
@@ -24,6 +25,7 @@ export interface WorkspaceMember {
   username: string
   first_name: string
   last_name: string
+  avatar_url: string | null
   role: WorkspaceRole
   joined_at: string
 }
@@ -31,7 +33,11 @@ export interface WorkspaceMember {
 export interface WorkspaceInvitation {
   id: string
   email: string
+  message: string
   role: WorkspaceInvitableRole
+  workspace_id: string
+  workspace_name: string
+  invited_by_name: string
   status: InvitationStatus
   invited_by_id: string | null
   created_at: string
