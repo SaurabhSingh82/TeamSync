@@ -45,6 +45,7 @@ const eventLabels: Record<CalendarEvent['event_type'], string> = {
   task_deadline: 'Task deadline',
   project_start: 'Project starts',
   project_deadline: 'Project deadline',
+  milestone_due: 'Milestone due',
 }
 
 export function CalendarPage() {

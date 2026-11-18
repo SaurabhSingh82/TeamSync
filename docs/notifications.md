@@ -2,7 +2,9 @@
 
 M08 adds database-backed in-app notifications and a workspace activity feed.
 Notifications cover task assignment changes, comments, mentions, workspace
-invitations and accepted invitations, and due-today/overdue reminders. The
+invitations and accepted invitations, and due-today/overdue reminders. Workspace
+invitations can be accepted or rejected from the notification or Invitations
+page; both actions use the same invitation record as the email link. The
 signed-in app shows the unread count in its navigation and provides a
 filterable notification list with mark-read, mark-unread, and mark-all-read
 actions.

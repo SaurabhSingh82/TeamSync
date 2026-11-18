@@ -4,6 +4,45 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../auth/errors'
 import { listWorkspaces } from '../../workspaces/api'
 import type { Workspace } from '../../workspaces/types'
+import {
+  clearStoredWorkspaceId,
+  getStoredWorkspaceId,
+  setStoredWorkspaceId,
+  workspaceIdFromPath,
+} from '../../workspaces/activeWorkspace'
+
+const workspaceCacheTtl = 30_000
+const workspaceCache = new Map<
+  string,
+  { items: Workspace[]; fetchedAt: number; request: Promise<Workspace[]> | null }
+>()
+
+function loadCachedWorkspaces(userId: string, force = false) {
+  const cached = workspaceCache.get(userId)
+  if (!force && cached && Date.now() - cached.fetchedAt < workspaceCacheTtl) {
+    return Promise.resolve(cached.items)
+  }
+  if (cached?.request) return cached.request
+
+  const request = listWorkspaces({ archived: 'all' })
+    .then((items) => {
+      workspaceCache.set(userId, { items, fetchedAt: Date.now(), request: null })
+      return items
+    })
+    .finally(() => {
+      const current = workspaceCache.get(userId)
+      if (current?.request === request) {
+        workspaceCache.set(userId, { ...current, request: null })
+      }
+    })
+
+  workspaceCache.set(userId, {
+    items: cached?.items ?? [],
+    fetchedAt: cached?.fetchedAt ?? 0,
+    request,
+  })
+  return request
+}
 
 export function WorkspaceSelector({
   userId,
@@ -14,22 +53,37 @@ export function WorkspaceSelector({
 }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [error, setError] = useState('')
-  const [loadedKey, setLoadedKey] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
-  const routeWorkspaceId = location.pathname.match(/^\/workspaces\/([^/]+)/)?.[1]
-  const activeWorkspaceId = routeWorkspaceId === 'new' ? '' : routeWorkspaceId ?? ''
-  const requestKey = `${userId}:${location.pathname}`
-  const loading = loadedKey !== requestKey
+  const routeWorkspaceId = workspaceIdFromPath(location.pathname)
+  const [storedWorkspaceId, setStoredWorkspaceIdState] = useState<string | null>(null)
+  const activeWorkspaceId = routeWorkspaceId ?? storedWorkspaceId ?? ''
+  const [loadedUserId, setLoadedUserId] = useState('')
+  const loading = loadedUserId !== userId
 
   useEffect(() => {
     let active = true
-    void listWorkspaces()
+    void loadCachedWorkspaces(userId)
       .then((items) => {
-        if (active) {
-          setWorkspaces(items)
-          setError('')
+        const routeOrStored = routeWorkspaceId ?? getStoredWorkspaceId(userId)
+        if (routeOrStored && !items.some((workspace) => workspace.id === routeOrStored)) {
+          return loadCachedWorkspaces(userId, true)
         }
+        return items
+      })
+      .then((items) => {
+        if (!active) return
+        const routeOrStored = routeWorkspaceId ?? getStoredWorkspaceId(userId)
+        const validWorkspace = items.find((workspace) => workspace.id === routeOrStored)
+        if (validWorkspace) {
+          setStoredWorkspaceId(userId, validWorkspace.id)
+          setStoredWorkspaceIdState(validWorkspace.id)
+        } else if (routeOrStored) {
+          clearStoredWorkspaceId(userId)
+          setStoredWorkspaceIdState(null)
+        }
+        setWorkspaces(items)
+        setError('')
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -38,12 +92,12 @@ export function WorkspaceSelector({
         }
       })
       .then(() => {
-        if (active) setLoadedKey(requestKey)
+        if (active) setLoadedUserId(userId)
       })
     return () => {
       active = false
     }
-  }, [requestKey, userId])
+  }, [routeWorkspaceId, userId])
 
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -55,7 +109,11 @@ export function WorkspaceSelector({
         disabled={loading || workspaces.length === 0}
         id={selectId}
         onChange={(event) => {
-          if (event.target.value) navigate(`/workspaces/${event.target.value}`)
+          if (event.target.value) {
+            setStoredWorkspaceId(userId, event.target.value)
+            setStoredWorkspaceIdState(event.target.value)
+            navigate(`/workspaces/${event.target.value}`)
+          }
         }}
         value={activeWorkspaceId}
       >
@@ -66,11 +124,24 @@ export function WorkspaceSelector({
               ? 'Select workspace'
               : 'No workspaces'}
         </option>
-        {workspaces.map((workspace) => (
-          <option key={workspace.id} value={workspace.id}>
-            {workspace.name} · {workspace.current_user_role}
-          </option>
-        ))}
+        {workspaces.some((workspace) => !workspace.archived_at) && (
+          <optgroup label="Workspaces">
+            {workspaces.filter((workspace) => !workspace.archived_at).map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.name} · {workspace.current_user_role}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {workspaces.some((workspace) => workspace.archived_at) && (
+          <optgroup label="Archived workspaces">
+            {workspaces.filter((workspace) => workspace.archived_at).map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.name} · {workspace.current_user_role}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
       <Link
         className="hidden whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium text-teamsync-navy hover:bg-slate-100 lg:inline-flex"

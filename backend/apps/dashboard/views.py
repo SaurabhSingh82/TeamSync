@@ -26,23 +26,26 @@ from apps.dashboard.serializers import (
     UpcomingTaskSerializer,
 )
 from apps.projects.models import Project
+from apps.projects.models import Milestone
 from apps.tasks.models import Task
 
 
 def _calendar_event_queryset(queryset, *, event_date, event_type, title):
     is_task_event = queryset.model is Task
-    return queryset.values(
+    is_milestone_event = queryset.model is Milestone
+    return queryset.order_by().values(
         event_date=F(event_date),
         event_type=Value(event_type, output_field=CharField()),
         event_title=F(title),
         object_id=Cast("pk", output_field=CharField()),
-        event_project_id=F("project_id") if is_task_event else F("pk"),
+        event_project_id=F("project_id") if (is_task_event or is_milestone_event) else F("pk"),
         event_workspace_id=(
-            F("project__workspace_id") if is_task_event else F("workspace_id")
+            F("project__workspace_id") if (is_task_event or is_milestone_event) else F("workspace_id")
         ),
-        event_project_name=F("project__name") if is_task_event else F("name"),
-        event_status=F("status") if is_task_event else Value("", output_field=CharField()),
+        event_project_name=F("project__name") if (is_task_event or is_milestone_event) else F("name"),
+        event_status=F("status") if (is_task_event or is_milestone_event) else Value("", output_field=CharField()),
         event_priority=F("priority") if is_task_event else Value("", output_field=CharField()),
+        event_description=F("description") if is_milestone_event else Value("", output_field=CharField()),
     )
 
 
@@ -231,6 +234,19 @@ class CalendarEventsView(APIView):
                     title="title",
                 )
             )
+        milestone_queryset = Milestone.objects.filter(
+            project__in=project_queryset,
+            due_date__gte=start,
+            due_date__lte=end,
+        )
+        event_querysets.append(
+            _calendar_event_queryset(
+                milestone_queryset,
+                event_date="due_date",
+                event_type="milestone_due",
+                title="title",
+            )
+        )
         for field, event_type in (
             ("start_date", "project_start"),
             ("due_date", "project_deadline"),

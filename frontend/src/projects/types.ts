@@ -18,6 +18,7 @@ export interface Project {
   updated_at: string
   current_user_project_role: ProjectRole | null
   current_user_workspace_role: 'owner' | 'admin' | 'member' | 'viewer'
+  workspace_archived: boolean
 }
 
 export interface ProjectMember {

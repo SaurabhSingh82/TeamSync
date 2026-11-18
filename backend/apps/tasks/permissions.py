@@ -50,6 +50,8 @@ def get_task_access(user, task_id, *, lock=False):
 
 
 def require_task_creator(project_access):
+    if project_access.workspace_archived:
+        raise PermissionDenied("Archived workspaces are read-only.")
     if project_access.workspace_membership.role == WorkspaceMember.Role.VIEWER:
         raise PermissionDenied("Workspace Viewers cannot create tasks.")
     if project_access.can_manage:
@@ -72,6 +74,8 @@ def is_task_participant(access, user):
 
 
 def require_task_participant(access, user):
+    if access.project_access.workspace_archived:
+        raise PermissionDenied("Archived workspaces are read-only.")
     if access.can_manage:
         return
     if access.project_access.workspace_membership.role == WorkspaceMember.Role.VIEWER:

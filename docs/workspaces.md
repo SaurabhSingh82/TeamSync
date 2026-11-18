@@ -46,13 +46,22 @@ The Owner membership is protected from removal or role changes.
 - `GET /api/workspaces/{workspace_id}/invitations/` - list invitations
   (paginated; Owner/Admin only).
 - `POST /api/workspaces/{workspace_id}/invitations/` - invite using
-  `{"email": "...", "role": "admin|member|viewer"}`.
+  `{"email": "...", "role": "admin|member|viewer", "message": "optional personal message"}`.
 - `POST /api/workspaces/{workspace_id}/invitations/{invitation_id}/revoke/` -
   revoke a pending invitation.
 - `POST /api/workspaces/{workspace_id}/invitations/{invitation_id}/resend/` -
   resend a pending or expired invitation.
 - `POST /api/invitations/accept/` - accept with `{"token": "..."}` while
   authenticated as the invited email address.
+- `GET /api/invitations/` - list invitations addressed to the authenticated
+  user's email address.
+- `POST /api/invitations/{invitation_id}/accept/` and
+  `POST /api/invitations/{invitation_id}/reject/` - accept or reject an
+  existing invitation from inside TeamSync.
+
+Personal messages are limited to 500 characters and are included in the
+notification, invitation page, and email. User-provided messages are rendered
+as plain text.
 
 Invitation tokens are generated using a cryptographically secure random
 generator. Only a SHA-256 digest is stored; the raw token is sent by email and

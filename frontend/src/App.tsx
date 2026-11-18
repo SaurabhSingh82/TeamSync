@@ -1,36 +1,40 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { RequireAuth } from './components/auth/RequireAuth'
-import { InvitationAcceptPage } from './pages/InvitationAcceptPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { AnalyticsPage } from './pages/AnalyticsPage'
-import { CalendarPage } from './pages/CalendarPage'
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { HomePage } from './pages/HomePage'
-import { LoginPage } from './pages/LoginPage'
-import { ProfilePage } from './pages/ProfilePage'
-import { ProjectLayout } from './components/projects/ProjectLayout'
-import { ProjectsPage } from './pages/ProjectsPage'
-import { ProjectMembersPage } from './pages/ProjectMembersPage'
-import { ProjectOverviewPage } from './pages/ProjectOverviewPage'
-import { ProjectSettingsPage } from './pages/ProjectSettingsPage'
-import { ProjectTasksPage } from './pages/ProjectTasksPage'
-import { TaskDetailDrawer } from './pages/TaskDetailDrawer'
-import { RegisterPage } from './pages/RegisterPage'
-import { ResetPasswordPage } from './pages/ResetPasswordPage'
-import { VerifyEmailPage } from './pages/VerifyEmailPage'
-import { WorkspaceCreatePage } from './pages/WorkspaceCreatePage'
-import { WorkspaceMembersPage } from './pages/WorkspaceMembersPage'
-import { WorkspaceSettingsPage } from './pages/WorkspaceSettingsPage'
-import { NotificationsPage } from './pages/NotificationsPage'
-import { WorkspaceActivityPage } from './pages/WorkspaceActivityPage'
-import { SearchPage } from './pages/SearchPage'
+
+const InvitationAcceptPage = lazy(() => import('./pages/InvitationAcceptPage').then((module) => ({ default: module.InvitationAcceptPage })))
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })))
+const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((module) => ({ default: module.ForgotPasswordPage })))
+const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
+const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })))
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((module) => ({ default: module.ProfilePage })))
+const ProjectLayout = lazy(() => import('./components/projects/ProjectLayout').then((module) => ({ default: module.ProjectLayout })))
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then((module) => ({ default: module.ProjectsPage })))
+const ProjectMembersPage = lazy(() => import('./pages/ProjectMembersPage').then((module) => ({ default: module.ProjectMembersPage })))
+const ProjectOverviewPage = lazy(() => import('./pages/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage })))
+const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage').then((module) => ({ default: module.ProjectSettingsPage })))
+const ProjectTasksPage = lazy(() => import('./pages/ProjectTasksPage').then((module) => ({ default: module.ProjectTasksPage })))
+const TaskDetailDrawer = lazy(() => import('./pages/TaskDetailDrawer').then((module) => ({ default: module.TaskDetailDrawer })))
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then((module) => ({ default: module.RegisterPage })))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })))
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then((module) => ({ default: module.VerifyEmailPage })))
+const WorkspaceCreatePage = lazy(() => import('./pages/WorkspaceCreatePage').then((module) => ({ default: module.WorkspaceCreatePage })))
+const WorkspaceMembersPage = lazy(() => import('./pages/WorkspaceMembersPage').then((module) => ({ default: module.WorkspaceMembersPage })))
+const WorkspaceSettingsPage = lazy(() => import('./pages/WorkspaceSettingsPage').then((module) => ({ default: module.WorkspaceSettingsPage })))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((module) => ({ default: module.NotificationsPage })))
+const InvitationsPage = lazy(() => import('./pages/InvitationsPage').then((module) => ({ default: module.InvitationsPage })))
+const WorkspaceActivityPage = lazy(() => import('./pages/WorkspaceActivityPage').then((module) => ({ default: module.WorkspaceActivityPage })))
+const SearchPage = lazy(() => import('./pages/SearchPage').then((module) => ({ default: module.SearchPage })))
 
 function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
+    <Suspense fallback={<p className="p-8 text-sm text-slate-600" role="status">Loading page…</p>}>
+      <Routes>
+        <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
         <Route
           path="dashboard"
@@ -75,6 +79,14 @@ function App() {
           element={
             <RequireAuth>
               <NotificationsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="invitations"
+          element={
+            <RequireAuth>
+              <InvitationsPage />
             </RequireAuth>
           }
         />
@@ -142,8 +154,9 @@ function App() {
           <Route path="settings" element={<ProjectSettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+        </Route>
+      </Routes>
+    </Suspense>
   )
 }
 

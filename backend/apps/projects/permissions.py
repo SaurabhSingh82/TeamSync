@@ -16,11 +16,17 @@ class ProjectAccess:
     project_membership: ProjectMember | None
 
     @property
+    def workspace_archived(self):
+        return self.project.workspace.archived_at is not None
+
+    @property
     def is_workspace_admin(self):
         return self.workspace_membership.role in WORKSPACE_ADMIN_ROLES
 
     @property
     def can_manage(self):
+        if self.workspace_archived:
+            return False
         if self.workspace_membership.role == WorkspaceMember.Role.VIEWER:
             return False
         return self.is_workspace_admin or (
@@ -30,7 +36,7 @@ class ProjectAccess:
 
     @property
     def can_delete(self):
-        return self.is_workspace_admin
+        return self.is_workspace_admin and not self.workspace_archived
 
 
 def get_workspace_membership(user, workspace_id, *, lock=False):

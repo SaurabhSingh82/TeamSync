@@ -21,6 +21,17 @@ env.read_env(ENV_FILE)
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
+if not DEBUG:
+    missing_production_settings = [
+        name
+        for name in ("DJANGO_ALLOWED_HOSTS", "DATABASE_URL")
+        if not os.environ.get(name, "").strip()
+    ]
+    if missing_production_settings:
+        raise ImproperlyConfigured(
+            "Production configuration is missing required settings: "
+            + ", ".join(missing_production_settings)
+        )
 SECURE_PROXY_SSL_HEADER = None
 proxy_ssl_header = env("SECURE_PROXY_SSL_HEADER", default="").strip()
 if proxy_ssl_header:
@@ -55,6 +66,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
+    "channels",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "apps.core",
@@ -99,6 +112,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
+
+if env("REDIS_URL", default=""):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [env("REDIS_URL")]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
+    }
 
 DATABASES = {
     "default": env.db(
@@ -145,6 +170,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
 
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "apps.users.authentication.CookieJWTAuthentication",
     ],
@@ -161,7 +187,23 @@ REST_FRAMEWORK = {
         "auth_login": "10/minute",
         "auth_register": env("AUTH_REGISTER_RATE", default="10/hour"),
         "auth_email": "5/hour",
+        "auth_email_v2": env(
+            "AUTH_EMAIL_RATE",
+            default="1000/hour" if DEBUG else "5/hour",
+        ),
         "workspace_invitation": "10/hour",
+        "workspace_invitation_send": env(
+            "WORKSPACE_INVITATION_SEND_RATE",
+            default="1000/hour" if DEBUG else "10/hour",
+        ),
+        "invitation_accept": env(
+            "INVITATION_ACCEPT_RATE",
+            default="1000/hour" if DEBUG else "10/hour",
+        ),
+        "invitation_accept_v2": env(
+            "INVITATION_ACCEPT_RATE",
+            default="1000/hour" if DEBUG else "10/hour",
+        ),
     },
 }
 
@@ -170,7 +212,7 @@ AUTH_COOKIE_SECURE = env.bool("AUTH_COOKIE_SECURE", default=not DEBUG)
 AUTH_COOKIE_SAMESITE = env("AUTH_COOKIE_SAMESITE", default="Lax")
 AUTH_ACCESS_COOKIE = "teamsync_access"
 AUTH_REFRESH_COOKIE = "teamsync_refresh"
-AUTH_ACCESS_COOKIE_PATH = "/api/"
+AUTH_ACCESS_COOKIE_PATH = "/"
 AUTH_REFRESH_COOKIE_PATH = "/api/auth/"
 
 SIMPLE_JWT = {
@@ -182,11 +224,14 @@ SIMPLE_JWT = {
 }
 
 EMAIL_BACKEND = env(
-    "DJANGO_EMAIL_BACKEND",
-    default=(
-        "apps.core.email_backends.InteractiveConsoleEmailBackend"
-        if DEBUG
-        else "django.core.mail.backends.smtp.EmailBackend"
+    "EMAIL_BACKEND",
+    default=env(
+        "DJANGO_EMAIL_BACKEND",
+        default=(
+            "apps.core.email_backends.InteractiveConsoleEmailBackend"
+            if DEBUG
+            else "django.core.mail.backends.smtp.EmailBackend"
+        ),
     ),
 )
 if EMAIL_BACKEND == "django.core.mail.backends.console.EmailBackend":
@@ -196,8 +241,40 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="TeamSync <noreply@localhost>")
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured(
+        "EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be enabled."
+    )
+if not DEBUG:
+    if EMAIL_BACKEND != "django.core.mail.backends.smtp.EmailBackend":
+        raise ImproperlyConfigured(
+            "Production email requires the authenticated SMTP backend."
+        )
+    required_email_settings = {
+        "EMAIL_HOST": EMAIL_HOST,
+        "EMAIL_HOST_USER": EMAIL_HOST_USER,
+        "EMAIL_HOST_PASSWORD": EMAIL_HOST_PASSWORD,
+        "DEFAULT_FROM_EMAIL": os.environ.get("DEFAULT_FROM_EMAIL", "").strip(),
+    }
+    missing_email_settings = [
+        name for name, value in required_email_settings.items() if not value.strip()
+    ]
+    if missing_email_settings:
+        raise ImproperlyConfigured(
+            "Production SMTP is missing required settings: "
+            + ", ".join(missing_email_settings)
+        )
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173").rstrip("/")
+INVITATION_SEND_IMMEDIATELY = env.bool(
+    "INVITATION_SEND_IMMEDIATELY",
+    default=DEBUG,
+)
+if not DEBUG and not FRONTEND_BASE_URL.startswith("https://"):
+    raise ImproperlyConfigured(
+        "Production FRONTEND_BASE_URL must be an HTTPS URL."
+    )
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

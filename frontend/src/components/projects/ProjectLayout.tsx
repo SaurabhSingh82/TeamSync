@@ -9,6 +9,7 @@ import { formatDate } from '../../projects/format'
 import { ProjectStatusBadge } from '../ui/Badge'
 import { AvatarGroup } from './AvatarGroup'
 import type { ProjectOutletContext } from './projectContext'
+import { useRealtime } from '../../realtime/useRealtime'
 
 export function ProjectLayout() {
   const { projectId, workspaceId } = useParams()
@@ -29,6 +30,18 @@ export function ProjectLayout() {
     setMemberCount(memberPage.count)
     setError('')
   }, [projectId])
+
+  useRealtime(
+    projectId && workspaceId
+      ? `/ws/workspaces/${workspaceId}/projects/${projectId}/`
+      : null,
+    (event) => {
+      if (event.type === 'resync.required' || event.type === 'project.created' || event.type === 'project.updated' ||
+        event.type.startsWith('task.')) {
+        void refresh()
+      }
+    },
+  )
 
   useEffect(() => {
     let active = true

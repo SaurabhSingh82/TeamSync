@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import { getApiErrorMessage } from '../auth/errors'
 import { ConfirmDialog } from '../components/workspaces/ConfirmDialog'
@@ -7,6 +7,7 @@ import { InviteMemberDialog } from '../components/workspaces/InviteMemberDialog'
 import {
   getWorkspace,
   inviteWorkspaceMember,
+  leaveWorkspace,
   listWorkspaceInvitations,
   listWorkspaceMembers,
   removeWorkspaceMember,
@@ -38,11 +39,9 @@ const roleLabels: Record<WorkspaceRole, string> = {
 async function fetchWorkspacePage(workspaceId: string) {
   const workspace = await getWorkspace(workspaceId)
   const members = await listWorkspaceMembers(workspaceId)
-  const invitations = ['owner', 'admin'].includes(workspace.current_user_role)
-    ? (await listWorkspaceInvitations(workspaceId)).filter(
-        (invitation) =>
-          invitation.status === 'pending' || invitation.status === 'expired',
-      )
+  const invitations = !workspace.archived_at &&
+    ['owner', 'admin'].includes(workspace.current_user_role)
+    ? await listWorkspaceInvitations(workspaceId)
     : []
   return { workspace, members, invitations }
 }
@@ -58,6 +57,8 @@ export function WorkspaceMembersPage() {
   const [busyAction, setBusyAction] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
   const [transferTargetId, setTransferTargetId] = useState('')
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const navigate = useNavigate()
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -108,6 +109,7 @@ export function WorkspaceMembersPage() {
   async function handleInvite(input: {
     email: string
     role: WorkspaceInvitableRole
+    message: string
   }) {
     if (!workspaceId) return
     setBusyAction('invite')
@@ -173,6 +175,21 @@ export function WorkspaceMembersPage() {
     }
   }
 
+  async function handleLeave() {
+    if (!workspaceId) return
+    setError('')
+    setBusyAction('leave')
+    try {
+      await leaveWorkspace(workspaceId)
+      setConfirmLeave(false)
+      navigate('/', { replace: true })
+    } catch (leaveError) {
+      setError(getApiErrorMessage(leaveError))
+    } finally {
+      setBusyAction('')
+    }
+  }
+
   async function handleInvitationAction(
     invitation: WorkspaceInvitation,
     action: 'resend' | 'revoke',
@@ -213,7 +230,7 @@ export function WorkspaceMembersPage() {
 
   const isOwner = workspace.current_user_role === 'owner'
   const isAdmin = workspace.current_user_role === 'admin'
-  const canManage = isOwner || isAdmin
+  const canManage = !workspace.archived_at && (isOwner || isAdmin)
   const transferTarget = members.find((member) => member.id === transferTargetId)
 
   return (
@@ -240,10 +257,25 @@ export function WorkspaceMembersPage() {
             role={workspace.current_user_role}
           />
         )}
+        {!isOwner && (
+          <button
+            className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60"
+            disabled={busyAction === 'leave'}
+            onClick={() => setConfirmLeave(true)}
+            type="button"
+          >
+            Leave workspace
+          </button>
+        )}
       </div>
 
       {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
       {notice && <p className="mt-5 text-sm text-emerald-800" role="status">{notice}</p>}
+      {workspace.archived_at && (
+        <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+          This workspace is archived and read-only. You may still leave the workspace.
+        </p>
+      )}
 
       <div className="mt-8 overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full min-w-[36rem] text-left text-sm">
@@ -258,6 +290,7 @@ export function WorkspaceMembersPage() {
           <tbody className="divide-y divide-slate-100">
             {members.map((member) => {
               const manageable =
+                canManage &&
                 member.role !== 'owner' &&
                 (isOwner || (isAdmin && ['member', 'viewer'].includes(member.role)))
               return (
@@ -352,6 +385,11 @@ export function WorkspaceMembersPage() {
                         {roleLabels[invitation.role]} · {invitation.status} · expires{' '}
                         {new Date(invitation.expires_at).toLocaleDateString()}
                       </p>
+                      {invitation.message && (
+                        <p className="mt-2 max-w-xl whitespace-pre-wrap text-sm text-slate-600">
+                          “{invitation.message}”
+                        </p>
+                      )}
                       <p className="mt-1 text-xs text-slate-600">
                         Email {invitation.email_delivery.status} ·{' '}
                         {invitation.email_delivery.attempts} attempt
@@ -393,7 +431,7 @@ export function WorkspaceMembersPage() {
         </section>
       )}
 
-      {isOwner && (
+      {isOwner && !workspace.archived_at && (
         <section className="mt-12 border-t border-slate-200 pt-6">
           <h2 className="text-xl font-semibold text-slate-950">Transfer ownership</h2>
           <p className="mt-2 text-sm text-slate-600">
@@ -454,6 +492,16 @@ export function WorkspaceMembersPage() {
           onCancel={() => setConfirmation(null)}
           onConfirm={() => void handleTransfer(confirmation.member)}
           title="Confirm ownership transfer"
+        />
+      )}
+      {confirmLeave && (
+        <ConfirmDialog
+          busy={busyAction === 'leave'}
+          confirmLabel="Leave workspace"
+          description={<>Leave <strong>{workspace.name}</strong>? Your project access will also be removed.</>}
+          onCancel={() => setConfirmLeave(false)}
+          onConfirm={() => void handleLeave()}
+          title="Leave this workspace?"
         />
       )}
     </section>

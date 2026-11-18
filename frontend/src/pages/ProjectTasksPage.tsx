@@ -4,12 +4,15 @@ import { Outlet, useSearchParams } from 'react-router'
 
 import { ProjectTaskListPage } from './ProjectTaskListPage'
 import { ProjectBoardPage } from './ProjectBoardPage'
+import { useProjectContext } from '../components/projects/projectContext'
+import type { ProjectOutletContext } from '../components/projects/projectContext'
 
-export interface ProjectTasksOutletContext {
+export interface ProjectTasksOutletContext extends ProjectOutletContext {
   refreshBoard: () => void
 }
 
 export function ProjectTasksPage() {
+  const projectContext = useProjectContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const [refreshKey, setRefreshKey] = useState(0)
   const view = searchParams.get('view') === 'list' ? 'list' : 'board'
@@ -53,7 +56,9 @@ export function ProjectTasksPage() {
       ) : (
         <ProjectTaskListPage refreshKey={refreshKey} />
       )}
-      <Outlet context={{ refreshBoard } satisfies ProjectTasksOutletContext} />
+      <Outlet
+        context={{ ...projectContext, refreshBoard } satisfies ProjectTasksOutletContext}
+      />
     </div>
   )
 }

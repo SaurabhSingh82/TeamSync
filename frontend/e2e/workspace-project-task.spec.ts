@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 
 test('a user registers, creates a workspace, project, task, and searches for it', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
   const unique = `${Date.now()}`
   const username = `e2e-user-${unique}`
   const workspaceName = `E2E workspace ${unique}`
@@ -58,4 +60,5 @@ test('a user registers, creates a workspace, project, task, and searches for it'
   }).fill(taskTitle)
   await page.getByRole('button', { name: 'Search', exact: true }).click()
   await expect(page.getByRole('link', { name: taskTitle })).toBeVisible()
+  expect(pageErrors).toEqual([])
 })

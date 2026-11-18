@@ -57,7 +57,7 @@ export function WorkspaceCreatePage() {
         </label>
         {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
         <button
-          className="rounded-md bg-slate-900 px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+          className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
           disabled={saving}
           type="submit"
         >

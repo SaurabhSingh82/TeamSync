@@ -19,6 +19,22 @@ backend/media/
 htmlcov/
 /ref/
 
+# Local credentials, private keys, and database backups
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.dump
+*.pgdump
+*.backup
+*.bak
+*.sql
+*.sql.gz
+.credentials/
+secrets.local.*
+credentials.local.*
+
 # Node
 node_modules/
 dist/

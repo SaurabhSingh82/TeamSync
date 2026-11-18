@@ -42,6 +42,7 @@ class ProjectReadSerializer(serializers.ModelSerializer):
     )
     current_user_project_role = serializers.SerializerMethodField()
     current_user_workspace_role = serializers.SerializerMethodField()
+    workspace_archived = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -60,6 +61,7 @@ class ProjectReadSerializer(serializers.ModelSerializer):
             "updated_at",
             "current_user_project_role",
             "current_user_workspace_role",
+            "workspace_archived",
         )
         read_only_fields = fields
 
@@ -84,6 +86,9 @@ class ProjectReadSerializer(serializers.ModelSerializer):
             workspace_id=project.workspace_id,
             user=request.user,
         ).values_list("role", flat=True).first()
+
+    def get_workspace_archived(self, project):
+        return project.workspace.archived_at is not None
 
 
 class ProjectMemberCreateSerializer(serializers.Serializer):

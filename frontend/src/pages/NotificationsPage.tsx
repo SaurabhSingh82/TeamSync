@@ -8,8 +8,10 @@ import {
   markAllNotificationsRead,
   setNotificationReadState,
 } from '../notifications/api'
+import { publishUnreadNotificationCount } from '../notifications/events'
 import type { NotificationItem } from '../notifications/types'
 import { formatTimestamp } from '../projects/format'
+import { useRealtime } from '../realtime/useRealtime'
 
 export function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -41,6 +43,12 @@ export function NotificationsPage() {
       setLoading(false)
     }
   }, [])
+
+  useRealtime('/ws/notifications/', (event) => {
+    if (event.type === 'resync.required' || event.type.startsWith('notification.') || event.type.startsWith('notifications.')) {
+      void load(unreadOnly, 1, false)
+    }
+  })
 
   useEffect(() => {
     let active = true
@@ -97,6 +105,7 @@ export function NotificationsPage() {
           items.map((item) => ({ ...item, read_at: new Date().toISOString() })),
         )
       }
+      publishUnreadNotificationCount(0)
     } catch (actionError) {
       setError(getApiErrorMessage(actionError))
     } finally {

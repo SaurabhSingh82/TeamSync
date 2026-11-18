@@ -75,6 +75,7 @@ export function ProjectTaskListPage({ refreshKey = 0 }: { refreshKey?: number })
   const pageSize = 20
   const requestKey = `${project.id}:${page}:${search}:${status}:${priority}:${assignee}:${creator}:${label}:${dueAfter}:${dueBefore}:${archived}:${refreshKey}`
   const canCreate =
+    !project.workspace_archived &&
     project.current_user_workspace_role !== 'viewer' &&
     (canManageProject(project) || project.current_user_project_role === 'member')
 
