@@ -160,7 +160,10 @@ export function AppLayout() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const isDark = theme === 'dark'
+    document.documentElement.classList.toggle('dark', isDark)
+    document.documentElement.style.backgroundColor = isDark ? '#010409' : '#f5f7fa'
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
     window.localStorage.setItem('teamsync.theme', theme)
   }, [theme])
 

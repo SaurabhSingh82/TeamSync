@@ -11,11 +11,15 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   color: #172033;
-  background: #f5f7fa;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  background-color: #f5f7fa;
+  color-scheme: light;
 }
 
 body {
@@ -97,6 +101,9 @@ textarea:focus-visible {
 
 html.dark {
   color-scheme: dark;
+  background-color: #010409 !important;
+  color: var(--teamsync-dark-text);
+  scrollbar-color: rgba(139, 148, 158, 0.4) transparent;
   --teamsync-dark-background: #010409;
   --teamsync-dark-surface: #0d1117;
   --teamsync-dark-border: #30363d;
@@ -108,12 +115,12 @@ html.dark {
 
 html.dark body,
 html.dark #root {
-  background: var(--teamsync-dark-background);
+  background-color: var(--teamsync-dark-background) !important;
   color: var(--teamsync-dark-text);
 }
 
 html.dark .bg-teamsync-canvas {
-  background-color: var(--teamsync-dark-background);
+  background-color: var(--teamsync-dark-background) !important;
 }
 
 html.dark .bg-teamsync-navy {
@@ -124,30 +131,79 @@ html.dark .bg-teamsync-navy-light {
   background-color: var(--teamsync-dark-accent);
 }
 
-html.dark .bg-white {
-  background-color: var(--teamsync-dark-surface);
+/* White background overrides & opacity variants */
+html.dark .bg-white,
+html.dark [class~="bg-white"] {
+  background-color: var(--teamsync-dark-surface) !important;
 }
 
-html.dark .bg-white\/95 {
-  background-color: rgb(1 4 9 / 0.95);
+html.dark .bg-white\/95,
+html.dark [class*="bg-white\/95"] {
+  background-color: rgb(1 4 9 / 0.95) !important;
+}
+
+html.dark .bg-white\/90,
+html.dark [class*="bg-white\/90"] {
+  background-color: rgb(13 17 23 / 0.90) !important;
+}
+
+html.dark .bg-white\/80,
+html.dark [class*="bg-white\/80"] {
+  background-color: rgb(13 17 23 / 0.80) !important;
 }
 
 html.dark .theme-header {
-  background-color: var(--teamsync-dark-background);
+  background-color: rgb(1 4 9 / 0.95) !important;
+  border-bottom-color: var(--teamsync-dark-border) !important;
 }
 
-html.dark .bg-slate-50 {
-  background-color: var(--teamsync-dark-surface);
+/* Slate background overrides & opacity variants */
+html.dark .bg-slate-50,
+html.dark [class~="bg-slate-50"] {
+  background-color: var(--teamsync-dark-surface) !important;
 }
 
+html.dark .bg-slate-50\/80,
+html.dark [class*="bg-slate-50\/80"] {
+  background-color: var(--teamsync-dark-hover) !important;
+}
+
+html.dark .bg-slate-50\/70,
+html.dark [class*="bg-slate-50\/70"] {
+  background-color: rgba(22, 27, 34, 0.7) !important;
+}
+
+html.dark .bg-slate-50\/60,
+html.dark [class*="bg-slate-50\/60"] {
+  background-color: rgba(22, 27, 34, 0.6) !important;
+}
+
+html.dark .bg-slate-50\/40,
+html.dark [class*="bg-slate-50\/40"] {
+  background-color: rgba(22, 27, 34, 0.4) !important;
+}
+
+/* Hover overrides for rows, tables, and buttons during scroll */
 html.dark [class~="hover:bg-slate-50"]:hover,
-html.dark .bg-slate-100,
-html.dark [class~="hover:bg-slate-100"]:hover {
-  background-color: var(--teamsync-dark-hover);
+html.dark [class*="hover\:bg-slate-50"]:hover,
+html.dark [class~="hover:bg-slate-100"]:hover,
+html.dark [class*="hover\:bg-slate-100"]:hover,
+html.dark [class~="hover:bg-white"]:hover,
+html.dark [class*="hover\:bg-white"]:hover {
+  background-color: var(--teamsync-dark-hover) !important;
+}
+
+html.dark [class~="hover:bg-slate-200"]:hover,
+html.dark [class*="hover\:bg-slate-200"]:hover {
+  background-color: var(--teamsync-dark-border) !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: var(--teamsync-dark-hover) !important;
 }
 
 html.dark .bg-slate-200 {
-  background-color: var(--teamsync-dark-border);
+  background-color: var(--teamsync-dark-border) !important;
 }
 
 html.dark .text-slate-950,
@@ -222,9 +278,14 @@ html.dark .focus\:ring-indigo-100:focus {
 html.dark .border-slate-100,
 html.dark .border-slate-200,
 html.dark .border-slate-200\/80,
+html.dark .border-slate-200\/90,
 html.dark .border-slate-300,
-html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
-  border-color: var(--teamsync-dark-border);
+html.dark [class*="border-slate-100"],
+html.dark [class*="border-slate-200"],
+html.dark [class*="border-slate-300"],
+html.dark [class*="divide-slate-100"] > :not([hidden]) ~ :not([hidden]),
+html.dark [class*="divide-slate-200"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--teamsync-dark-border) !important;
 }
 
 html.dark input,
