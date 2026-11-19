@@ -56,106 +56,115 @@ export function ProfilePage() {
   }
 
   return (
-    <section className="max-w-2xl">
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-        Profile and account settings
-      </h1>
-      <p className="mt-2 text-slate-600">
-        Signed in as <span className="font-medium">{user.username}</span>.
-      </p>
-      <p className="mt-2 text-sm text-slate-600">
-        Email status:{' '}
-        {user.email_verified ? 'verified' : 'not verified; sign-in is still enabled'}
-      </p>
+    <section className="max-w-2xl space-y-5">
+      <div className="border-b border-slate-200/80 pb-3 dark:border-slate-800">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+          Account Settings
+        </h1>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Signed in as <strong className="font-semibold text-slate-800 dark:text-slate-200">{user.username}</strong> ({user.email}) ·{' '}
+          {user.email_verified ? 'Verified' : 'Unverified email'}
+        </p>
+      </div>
 
-      <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-700">
-            First name
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          Personal Information
+        </h2>
+        <form className="mt-4 space-y-3.5" onSubmit={handleSubmit}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              First name
+              <input
+                autoComplete="given-name"
+                className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                defaultValue={user.first_name}
+                maxLength={150}
+                name="first_name"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Last name
+              <input
+                autoComplete="family-name"
+                className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                defaultValue={user.last_name}
+                maxLength={150}
+                name="last_name"
+              />
+            </label>
+          </div>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Email address
             <input
-              autoComplete="given-name"
-              className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-              defaultValue={user.first_name}
-              maxLength={150}
-              name="first_name"
+              autoComplete="email"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              defaultValue={user.email}
+              name="email"
+              required
+              type="email"
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
-            Last name
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Time zone
             <input
-              autoComplete="family-name"
-              className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-              defaultValue={user.last_name}
-              maxLength={150}
-              name="last_name"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              defaultValue={user.timezone}
+              maxLength={64}
+              name="timezone"
+              placeholder="e.g. Asia/Kolkata"
             />
           </label>
-        </div>
-        <label className="block text-sm font-medium text-slate-700">
-          Email
-          <input
-            autoComplete="email"
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-            defaultValue={user.email}
-            name="email"
-            required
-            type="email"
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Time zone
-          <input
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-            defaultValue={user.timezone}
-            maxLength={64}
-            name="timezone"
-            placeholder="America/New_York"
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Bio
-          <textarea
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-            defaultValue={user.bio}
-            maxLength={500}
-            name="bio"
-            rows={4}
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Avatar
-          <span className="mt-1 block text-xs font-normal text-slate-500">
-            JPEG, PNG, or WebP; maximum 5 MB and 4096 × 4096 pixels.
-          </span>
-          <input
-            accept="image/jpeg,image/png,image/webp"
-            className="teamsync-file-input mt-2 block w-full text-sm text-slate-700"
-            name="avatar"
-            type="file"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        {saved && (
-          <p role="status" className="text-sm text-emerald-800">
-            Profile saved.
-          </p>
-        )}
-        <button
-          className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
-          disabled={saving}
-          type="submit"
-        >
-          {saving ? 'Saving…' : 'Save profile'}
-        </button>
-      </form>
-      <section className="mt-12 border-t border-slate-200 pt-6">
-        <h2 className="text-xl font-semibold text-slate-950">In-app notification preferences</h2>
-        <p className="mt-2 text-sm text-slate-600">Choose which notification categories are created for your account.</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Bio
+            <textarea
+              className="mt-1 block w-full rounded-md border border-slate-200 bg-white p-2.5 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              defaultValue={user.bio}
+              maxLength={500}
+              name="bio"
+              rows={3}
+            />
+          </label>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Avatar Image
+            <span className="mt-0.5 block text-[11px] font-normal text-slate-400">
+              JPEG, PNG, or WebP; max 5 MB.
+            </span>
+            <input
+              accept="image/jpeg,image/png,image/webp"
+              className="teamsync-file-input mt-1.5 block w-full text-xs text-slate-700 dark:text-slate-300"
+              name="avatar"
+              type="file"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
+          {saved && (
+            <p role="status" className="text-xs text-emerald-800 dark:text-emerald-400">
+              Profile updated successfully.
+            </p>
+          )}
+          <button
+            className="teamsync-primary-button h-8 rounded-lg px-4 text-xs font-semibold shadow-2xs"
+            disabled={saving}
+            type="submit"
+          >
+            {saving ? 'Saving…' : 'Save profile'}
+          </button>
+        </form>
+      </div>
+
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          In-App Notification Preferences
+        </h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Select which notification event categories trigger real-time alerts for your account.
+        </p>
+        <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
           {[
             ['task_assigned', 'Task assignments'],
             ['task_comment', 'Task comments'],
@@ -165,8 +174,9 @@ export function ProfilePage() {
             ['deadline_today', 'Due today'],
             ['deadline_overdue', 'Overdue tasks'],
           ].map(([key, label]) => (
-            <label className="flex items-center gap-3 text-sm text-slate-700" key={key}>
+            <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300" key={key}>
               <input
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
                 checked={preferences[key] !== false}
                 onChange={(event) => setPreferences((current) => ({ ...current, [key]: event.target.checked }))}
                 type="checkbox"
@@ -176,14 +186,15 @@ export function ProfilePage() {
           ))}
         </div>
         <button
-          className="mt-5 rounded-md border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 disabled:opacity-60"
+          className="mt-4 h-8 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           disabled={savingPreferences}
           onClick={() => void savePreferences()}
           type="button"
         >
           {savingPreferences ? 'Saving…' : 'Save notification preferences'}
         </button>
-      </section>
+      </div>
     </section>
+  )
   )
 }

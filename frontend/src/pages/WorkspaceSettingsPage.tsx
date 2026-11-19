@@ -125,76 +125,86 @@ export function WorkspaceSettingsPage() {
   const isOwner = workspace.current_user_role === 'owner'
 
   return (
-    <section className="max-w-3xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="max-w-2xl space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-3 dark:border-slate-800">
         <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-indigo-700">
+          <span className="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
             {workspace.current_user_role}
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+          </span>
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
             {workspace.name}
           </h1>
         </div>
-        {workspace.archived_at && (
-          <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
-            This workspace is archived and read-only. Only the Owner can restore it.
-          </p>
-        )}
         <Link
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
+          className="h-8 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           to={`/workspaces/${workspace.id}/members`}
         >
           View members
         </Link>
       </div>
-      <form className="mt-8 space-y-5" onSubmit={(event) => void handleSubmit(event)}>
-        <label className="block text-sm font-medium text-slate-700">
-          Workspace name
-          <input
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 disabled:bg-slate-100"
-            disabled={!canManage}
-            maxLength={100}
-            onChange={(event) => setName(event.target.value)}
-            required
-            value={name}
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Description
-          <textarea
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 disabled:bg-slate-100"
-            disabled={!canManage}
-            maxLength={5000}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={5}
-            value={description}
-          />
-        </label>
-        <p className="text-sm text-slate-600">
-          Workspace ID: <code>{workspace.id}</code>
+
+      {workspace.archived_at && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200" role="status">
+          This workspace is archived and read-only. Only the Owner can restore it.
         </p>
-        {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
-        {saved && <p className="text-sm text-emerald-800" role="status">Settings saved.</p>}
-        {canManage && (
-          <button
-            className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
-            disabled={saving}
-            type="submit"
-          >
-            {saving ? 'Saving…' : 'Save settings'}
-          </button>
-        )}
-      </form>
+      )}
+
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          General Settings
+        </h2>
+        <form className="mt-4 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+            Workspace name
+            <input
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:disabled:bg-slate-800/40"
+              disabled={!canManage}
+              maxLength={100}
+              onChange={(event) => setName(event.target.value)}
+              required
+              value={name}
+            />
+          </label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+            Description
+            <textarea
+              className="mt-1 block w-full rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-800 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:disabled:bg-slate-800/40"
+              disabled={!canManage}
+              maxLength={5000}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={4}
+              value={description}
+            />
+          </label>
+          <p className="text-[11px] text-slate-400">
+            Workspace ID: <code className="font-mono text-slate-600 dark:text-slate-300">{workspace.id}</code>
+          </p>
+          {error && <p className="text-xs text-red-700 dark:text-red-400" role="alert">{error}</p>}
+          {saved && <p className="text-xs text-emerald-800 dark:text-emerald-400" role="status">Settings saved successfully.</p>}
+          {canManage && (
+            <button
+              className="teamsync-primary-button h-8 rounded-lg px-4 text-xs font-semibold"
+              disabled={saving}
+              type="submit"
+            >
+              {saving ? 'Saving…' : 'Save settings'}
+            </button>
+          )}
+        </form>
+      </div>
+
       {isOwner && (
-        <div className="mt-12 border-t border-slate-200 pt-6">
-          <h2 className="text-lg font-semibold text-slate-950">Workspace lifecycle</h2>
-          <p className="mt-2 text-sm text-slate-600">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+            Workspace Lifecycle
+          </h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {workspace.archived_at
-              ? 'Restore this workspace to allow members to make changes again.'
-              : 'Archiving hides this workspace from normal lists and makes it read-only for its members.'}
+              ? 'Restore this workspace to allow members to collaborate and make updates again.'
+              : 'Archiving hides this workspace from normal lists and places it in read-only mode.'}
           </p>
           <button
-            className="mt-4 inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white disabled:opacity-60"
+            className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             disabled={archiving}
             onClick={() => {
               if (workspace.archived_at) void handleArchive()
@@ -203,21 +213,30 @@ export function WorkspaceSettingsPage() {
             type="button"
           >
             {workspace.archived_at
-              ? <RotateCcw aria-hidden="true" size={16} />
-              : <Archive aria-hidden="true" size={16} />}
+              ? <RotateCcw aria-hidden="true" size={14} />
+              : <Archive aria-hidden="true" size={14} />}
             {workspace.archived_at ? 'Restore workspace' : 'Archive workspace'}
           </button>
         </div>
       )}
+
       {isOwner && (
-        <div className="mt-12 border-t border-slate-200 pt-6">
-          <h2 className="text-lg font-semibold text-slate-950">Delete workspace</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Deleting a workspace permanently removes its memberships and invitations.
+        <div className="rounded-xl border border-red-200 bg-red-50/20 p-5 shadow-2xs dark:border-red-950/60 dark:bg-red-950/20">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-red-800 dark:text-red-400">
+            Danger Zone · Delete Workspace
+          </h2>
+          <p className="mt-1 text-xs text-red-700/80 dark:text-red-300/80">
+            Permanently removes this workspace, projects, and all member access. This action cannot be reversed.
           </p>
           <button
-            className="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50"
+            className="mt-3 h-8 rounded-lg border border-red-300 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900/40"
             onClick={() => setConfirmDelete(true)}
+            type="button"
+          >
+            Delete workspace
+          </button>
+        </div>
+      )}
             type="button"
           >
             Delete workspace

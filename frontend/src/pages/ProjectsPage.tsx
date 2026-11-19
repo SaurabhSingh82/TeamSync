@@ -7,6 +7,7 @@ import { ProjectFormDialog } from '../components/projects/ProjectFormDialog'
 import type { ProjectFormValues } from '../components/projects/ProjectFormDialog'
 import { ProjectStatusBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import { InlineLoader } from '../components/ui/Loading'
 import { createProject, listWorkspaceProjects } from '../projects/api'
 import type { Project, ProjectFilters, ProjectStatus } from '../projects/types'
 import { getWorkspace } from '../workspaces/api'
@@ -30,18 +31,20 @@ function formatDate(value: string | null) {
 function ProjectCard({ project }: { project: Project }) {
   return (
     <Link
-      className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+      className="group block rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-slate-700"
       to={`/workspaces/${project.workspace_id}/projects/${project.id}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="font-semibold text-slate-950">{project.name}</h2>
+        <h2 className="text-sm font-semibold text-slate-900 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400">
+          {project.name}
+        </h2>
         <ProjectStatusBadge status={project.status} />
       </div>
-      <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">
-        {project.description || 'No description'}
+      <p className="mt-1.5 line-clamp-2 min-h-8 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+        {project.description || 'No description provided'}
       </p>
-      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-        <span>{project.current_user_project_role ?? 'Workspace admin'}</span>
+      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-400 dark:border-slate-800/80">
+        <span>{project.current_user_project_role ?? 'Workspace member'}</span>
         <span>{project.due_date ? `Due ${formatDate(project.due_date)}` : 'No due date'}</span>
       </div>
     </Link>
@@ -118,41 +121,43 @@ export function ProjectsPage() {
   const stale = loadedKey !== requestKey
 
   return (
-    <section>
-      <div className="flex flex-wrap items-end justify-between gap-5">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200/80 pb-4 dark:border-slate-800">
         <div>
-          <p className="text-sm font-semibold text-teamsync-navy">Workspace projects</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Workspace Projects
+          </p>
+          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
             {workspace?.name ?? 'Projects'}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Browse and manage projects available to you in this workspace.
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Browse, manage, and track deliverables across active workspace projects.
           </p>
         </div>
         {canCreate && (
           <Button onClick={() => setShowCreateDialog(true)}>
-            <FolderPlus aria-hidden="true" size={17} />
+            <FolderPlus aria-hidden="true" size={15} />
             New project
           </Button>
         )}
       </div>
 
-      <div className="mt-7 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
+      <div className="flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90 md:flex-row md:items-center">
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">Search projects</span>
-          <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+          <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
           <input
-            className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400"
+            className="h-8 w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search projects"
+            placeholder="Search projects…"
             type="search"
             value={searchInput}
           />
         </label>
-        <label className="text-sm text-slate-600">
+        <label className="text-xs text-slate-600 dark:text-slate-400">
           <span className="sr-only">Filter by status</span>
           <select
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 md:w-40"
+            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 md:w-36"
             onChange={(event) => {
               setStatus(event.target.value as ProjectStatus | '')
               setPage(1)
@@ -165,10 +170,10 @@ export function ProjectsPage() {
             ))}
           </select>
         </label>
-        <label className="text-sm text-slate-600">
+        <label className="text-xs text-slate-600 dark:text-slate-400">
           <span className="sr-only">Filter archived projects</span>
           <select
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 md:w-40"
+            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 md:w-36"
             onChange={(event) => {
               setArchived(event.target.value as 'false' | 'true' | 'all')
               setPage(1)
@@ -183,15 +188,13 @@ export function ProjectsPage() {
       </div>
 
       {error && (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+        <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">
           {error}
         </p>
       )}
 
       {stale ? (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500" role="status">
-          Loading projects…
-        </div>
+        <InlineLoader message="Loading projects…" />
       ) : projects.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <FolderPlus aria-hidden="true" className="mx-auto text-slate-400" size={28} />

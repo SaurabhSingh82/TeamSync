@@ -32,85 +32,94 @@ export function RegisterPage() {
   }
 
   return (
-    <section className="mx-auto max-w-md">
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-        Create your account
-      </h1>
-      <p className="mt-2 text-slate-600">
-        Email verification instructions will be sent after registration.
-      </p>
-      <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-        <label className="block text-sm font-medium text-slate-700">
-          Username
-          <input
-            autoComplete="username"
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-            maxLength={150}
-            name="username"
-            required
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Email
-          <input
-            autoComplete="email"
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-            maxLength={254}
-            name="email"
-            required
-            type="email"
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-700">
-            First name
+    <section className="mx-auto max-w-sm space-y-4">
+      <div className="text-center">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+          Create your account
+        </h1>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Join TeamSync to collaborate across workspaces in real time.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+        <form className="space-y-3" onSubmit={handleSubmit}>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Username
             <input
-              autoComplete="given-name"
-              className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
+              autoComplete="username"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               maxLength={150}
-              name="first_name"
+              name="username"
+              placeholder="e.g. kishlay"
+              required
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
-            Last name
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Email
             <input
-              autoComplete="family-name"
-              className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-              maxLength={150}
-              name="last_name"
+              autoComplete="email"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              maxLength={254}
+              name="email"
+              placeholder="name@company.com"
+              required
+              type="email"
             />
           </label>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              First name
+              <input
+                autoComplete="given-name"
+                className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                maxLength={150}
+                name="first_name"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Last name
+              <input
+                autoComplete="family-name"
+                className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                maxLength={150}
+                name="last_name"
+              />
+            </label>
+          </div>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Password (min 8 characters)
+            <input
+              autoComplete="new-password"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              minLength={8}
+              name="password"
+              placeholder="••••••••"
+              required
+              type="password"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
+          <button
+            className="teamsync-primary-button h-8 w-full rounded-lg px-4 text-xs font-semibold shadow-2xs"
+            disabled={submitting}
+            type="submit"
+          >
+            {submitting ? 'Creating account…' : 'Create account'}
+          </button>
+        </form>
+
+        <div className="mt-4 border-t border-slate-100 pt-3 text-center text-xs dark:border-slate-800/80">
+          <span className="text-slate-500 dark:text-slate-400">Already registered? </span>
+          <Link className="font-semibold text-slate-900 hover:underline dark:text-slate-100" to="/login">
+            Sign in
+          </Link>
         </div>
-        <label className="block text-sm font-medium text-slate-700">
-          Password
-          <input
-            autoComplete="new-password"
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950"
-            minLength={8}
-            name="password"
-            required
-            type="password"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        <button
-          className="teamsync-primary-button w-full rounded-md px-4 py-2.5 font-semibold"
-          disabled={submitting}
-          type="submit"
-        >
-          {submitting ? 'Creating account…' : 'Create account'}
-        </button>
-      </form>
-      <p className="mt-6 text-sm text-slate-600">
-        Already registered?{' '}
-        <Link className="font-medium text-indigo-700 hover:underline" to="/login">
-          Sign in
-        </Link>
-      </p>
+      </div>
     </section>
   )
 }

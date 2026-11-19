@@ -28,42 +28,49 @@ export function WorkspaceCreatePage() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl">
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-        Create a workspace
-      </h1>
-      <p className="mt-2 text-slate-600">
-        Start a shared space and invite your team when you are ready.
-      </p>
-      <form className="mt-8 space-y-5" onSubmit={(event) => void handleSubmit(event)}>
-        <label className="block text-sm font-medium text-slate-700">
-          Workspace name
-          <input
-            autoFocus
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5"
-            maxLength={100}
-            name="name"
-            required
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Description
-          <textarea
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5"
-            maxLength={5000}
-            name="description"
-            rows={4}
-          />
-        </label>
-        {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
-        <button
-          className="teamsync-primary-button rounded-md px-4 py-2.5 font-semibold"
-          disabled={saving}
-          type="submit"
-        >
-          {saving ? 'Creating…' : 'Create workspace'}
-        </button>
-      </form>
+    <section className="mx-auto max-w-lg space-y-4">
+      <div className="border-b border-slate-200/80 pb-3 dark:border-slate-800">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+          Create a workspace
+        </h1>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Set up a collaborative space to organize projects, tasks, and team members.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+        <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Workspace name
+            <input
+              autoFocus
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              maxLength={100}
+              name="name"
+              placeholder="e.g. Acme Engineering"
+              required
+            />
+          </label>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Description
+            <textarea
+              className="mt-1 block w-full rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              maxLength={5000}
+              name="description"
+              placeholder="Brief overview of the workspace goal…"
+              rows={3}
+            />
+          </label>
+          {error && <p className="text-xs text-red-700 dark:text-red-400" role="alert">{error}</p>}
+          <button
+            className="teamsync-primary-button h-8 rounded-lg px-4 text-xs font-semibold shadow-2xs"
+            disabled={saving}
+            type="submit"
+          >
+            {saving ? 'Creating…' : 'Create workspace'}
+          </button>
+        </form>
+      </div>
     </section>
   )
 }

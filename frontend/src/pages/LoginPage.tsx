@@ -31,59 +31,67 @@ export function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-md">
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-        Sign in
-      </h1>
-      <p className="mt-2 text-slate-600">
-        Use your TeamSync username or email address.
-      </p>
+    <section className="mx-auto max-w-sm space-y-4">
+      <div className="text-center">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+          Sign in to TeamSync
+        </h1>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Enter your username or email address to access workspaces.
+        </p>
+      </div>
+
       {registered && (
-        <p className="mt-4 rounded-md bg-emerald-50 p-4 text-sm text-emerald-900">
-          Your account was created. A verification link was sent to your email;
-          you can sign in before verifying it.
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+          Account created successfully. A verification link was sent to your email; you may sign in immediately.
         </p>
       )}
-      <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-        <label className="block text-sm font-medium text-slate-700">
-          Username or email
-          <input
-            autoComplete="username"
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            name="identifier"
-            required
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Password
-          <input
-            autoComplete="current-password"
-            className="mt-1.5 block w-full rounded-md border border-slate-300 px-3 py-2.5 text-slate-950 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            name="password"
-            required
-            type="password"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        <button
-          className="teamsync-primary-button w-full rounded-md px-4 py-2.5 font-semibold"
-          disabled={submitting}
-          type="submit"
-        >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-      <div className="mt-6 flex justify-between text-sm">
-        <Link className="text-indigo-700 hover:underline" to="/forgot-password">
-          Forgot password?
-        </Link>
-        <Link className="text-indigo-700 hover:underline" to="/register">
-          Create account
-        </Link>
+
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+        <form className="space-y-3.5" onSubmit={handleSubmit}>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Username or email
+            <input
+              autoComplete="username"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              name="identifier"
+              placeholder="e.g. kishlay@company.com"
+              required
+            />
+          </label>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Password
+            <input
+              autoComplete="current-password"
+              className="mt-1 block h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 focus:border-slate-400 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              name="password"
+              placeholder="••••••••"
+              required
+              type="password"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
+          <button
+            className="teamsync-primary-button h-8 w-full rounded-lg px-4 text-xs font-semibold shadow-2xs"
+            disabled={submitting}
+            type="submit"
+          >
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
+        <div className="mt-4 flex justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800/80">
+          <Link className="text-slate-500 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-200" to="/forgot-password">
+            Forgot password?
+          </Link>
+          <Link className="font-semibold text-slate-900 hover:underline dark:text-slate-100" to="/register">
+            Create account
+          </Link>
+        </div>
       </div>
     </section>
   )
