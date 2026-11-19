@@ -187,7 +187,7 @@ def notify_workspace_invitation(*, invitation):
     )
     if recipient is None:
         return None
-    return create_notification(
+    notification = create_notification(
         recipient=recipient,
         workspace=invitation.workspace,
         actor=invitation.invited_by,
@@ -204,6 +204,33 @@ def notify_workspace_invitation(*, invitation):
             "expires_at": invitation.expires_at.isoformat(),
         },
     )
+    # Fire a dedicated real-time event so InvitationsPage can prepend the
+    # new card instantly and AppLayout can show a premium toast — no extra
+    # API round-trip needed.
+    inviter = invitation.invited_by
+    inviter_name = (
+        inviter.get_full_name() or inviter.username
+        if inviter is not None
+        else "A TeamSync admin"
+    )
+    from apps.realtime.events import schedule_user_event
+
+    schedule_user_event(
+        user_id=recipient.pk,
+        event_type="invitation.created",
+        payload={
+            "invitation_id": str(invitation.pk),
+            "workspace_id": str(invitation.workspace_id),
+            "workspace_name": invitation.workspace.name,
+            "role": invitation.role,
+            "message": invitation.message or "",
+            "expires_at": invitation.expires_at.isoformat(),
+            "invited_by_id": str(inviter.pk) if inviter else None,
+            "invited_by_name": inviter_name,
+            "created_at": invitation.created_at.isoformat(),
+        },
+    )
+    return notification
 
 
 def notify_invitation_accepted(*, invitation, user):

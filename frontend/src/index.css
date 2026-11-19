@@ -302,3 +302,41 @@ html.dark select:focus-visible,
 html.dark textarea:focus-visible {
   outline-color: var(--teamsync-dark-accent);
 }
+
+/* ─── Toast notification system ─────────────────────────────────────────── */
+
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+.toast-progress {
+  animation: toast-progress var(--toast-duration, 6000ms) linear forwards;
+}
+
+/* Dark-mode toast overrides */
+html.dark .toast-item {
+  background-color: rgb(13 17 23 / 0.92);
+  border-color: rgb(48 54 61 / 0.6);
+}
+
+html.dark .toast-item p {
+  color: var(--teamsync-dark-text);
+}
+
+html.dark .toast-item p.text-slate-600 {
+  color: var(--teamsync-dark-muted);
+}
+
+html.dark .toast-item p.text-slate-500,
+html.dark .toast-item p.font-medium {
+  color: #8b949e;
+}
+
+html.dark .toast-item button.text-slate-400 {
+  color: #8b949e;
+}
+
+html.dark .toast-item button.text-slate-400:hover {
+  color: var(--teamsync-dark-text);
+}

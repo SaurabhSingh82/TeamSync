@@ -45,7 +45,12 @@ export function NotificationsPage() {
   }, [])
 
   useRealtime('/ws/notifications/', (event) => {
-    if (event.type === 'resync.required' || event.type.startsWith('notification.') || event.type.startsWith('notifications.')) {
+    if (
+      event.type === 'resync.required' ||
+      event.type.startsWith('notification.') ||
+      event.type.startsWith('notifications.') ||
+      event.type.startsWith('invitation.')
+    ) {
       void load(unreadOnly, 1, false)
     }
   })

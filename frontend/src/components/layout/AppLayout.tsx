@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Activity,
   Bell,
@@ -17,14 +17,16 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
 import { getApiErrorMessage } from '../../auth/errors'
 import { useAuth } from '../../auth/useAuth'
 import { Avatar } from '../ui/Avatar'
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector'
 import { listNotifications } from '../../notifications/api'
-import { notificationsUpdatedEvent } from '../../notifications/events'
+import { notificationsUpdatedEvent, publishUnreadNotificationCount } from '../../notifications/events'
+import { useRealtime } from '../../realtime/useRealtime'
+import { useToast } from '../ui/ToastProvider'
 import teamsyncLogo from '../../assets/teamsync-logo.svg'
 import {
   clearStoredWorkspaceId,
@@ -104,10 +106,14 @@ export function AppLayout() {
   const { error: authError, loading, logout, user } = useAuth()
   const [logoutError, setLogoutError] = useState('')
   const [unreadCount, setUnreadCount] = useState(0)
+  const unreadCountRef = useRef(unreadCount)
+  unreadCountRef.current = unreadCount
   const [notificationError, setNotificationError] = useState('')
   const [hoveredSidebarItem, setHoveredSidebarItem] = useState<string | null>(null)
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const location = useLocation()
+  const navigate = useNavigate()
+  const { showInvitation } = useToast()
   const routeWorkspaceId = workspaceIdFromPath(location.pathname)
   const activeWorkspaceId = routeWorkspaceId ?? (user ? getStoredWorkspaceId(user.id) : null)
 
@@ -156,6 +162,75 @@ export function AppLayout() {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     window.localStorage.setItem('teamsync.theme', theme)
   }, [theme])
+
+  // ── Real-time WebSocket: instant badge + toasts ───────────────────────────
+  const handleRealtimeEvent = useCallback(
+    (event: { type: string; payload?: Record<string, unknown> }) => {
+      if (!user) return
+
+      if (event.type === 'resync.required') {
+        // Reconnect: re-fetch real unread count from API
+        void loadUnreadNotificationCount().then((count) => {
+          setUnreadCount(count)
+          publishUnreadNotificationCount(count)
+        })
+        return
+      }
+
+      if (event.type === 'notification.created') {
+        const isUnread = event.payload?.unread === true
+        if (isUnread) {
+          const next = unreadCountRef.current + 1
+          setUnreadCount(next)
+          publishUnreadNotificationCount(next)
+        }
+        return
+      }
+
+      if (event.type === 'invitation.created') {
+        const p = event.payload ?? {}
+        const workspaceName = String(p.workspace_name ?? 'a workspace')
+        const inviterName = String(p.invited_by_name ?? 'Someone')
+        const role = String(p.role ?? 'member')
+        const invitationId = String(p.invitation_id ?? '')
+        // Update badge (notification was already counted by notification.created)
+        // Show premium invitation toast
+        showInvitation({
+          workspaceName,
+          inviterName,
+          role,
+          onView: () => {
+            void navigate(
+              invitationId
+                ? `/invitations?invitation=${invitationId}`
+                : '/invitations',
+            )
+          },
+        })
+        return
+      }
+
+      if (event.type === 'notifications.read_all') {
+        setUnreadCount(0)
+        publishUnreadNotificationCount(0)
+        return
+      }
+
+      if (event.type === 'notification.read_state') {
+        const isRead = event.payload?.read === true
+        // On mark-read: decrement; on mark-unread: increment (guard ≥0)
+        setUnreadCount((prev) => {
+          const next = isRead ? Math.max(0, prev - 1) : prev + 1
+          publishUnreadNotificationCount(next)
+          return next
+        })
+      }
+    },
+    [user, showInvitation, navigate],
+  )
+
+  useRealtime(user ? '/ws/notifications/' : null, handleRealtimeEvent)
+  // ─────────────────────────────────────────────────────────────────────────
 
   async function handleLogout() {
     setLogoutError('')

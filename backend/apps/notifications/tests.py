@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -228,3 +229,49 @@ class NotificationAndActivityTests(TestCase):
                 for event in events
             )
         )
+
+    @patch("apps.realtime.events.schedule_user_event")
+    def test_notify_workspace_invitation_schedules_realtime_invitation_event(
+        self, mock_schedule_user_event
+    ):
+        from apps.workspaces.services import create_invitation
+
+        new_user = User.objects.create_user(
+            username="invited-user",
+            email="invited-user@example.com",
+        )
+        invitation = create_invitation(
+            workspace=self.workspace,
+            inviter=self.owner,
+            email=new_user.email,
+            role="member",
+            message="Welcome to TeamSync!",
+        )
+
+        notification = Notification.objects.get(
+            recipient=new_user,
+            kind=Notification.Kind.WORKSPACE_INVITATION,
+        )
+        self.assertEqual(notification.metadata["role"], "member")
+        self.assertEqual(notification.metadata["invitation_id"], str(invitation.pk))
+
+        # Check mock calls to schedule_user_event: both notification.created and invitation.created
+        event_types = [
+            call.kwargs.get("event_type")
+            for call in mock_schedule_user_event.call_args_list
+        ]
+        self.assertIn("notification.created", event_types)
+        self.assertIn("invitation.created", event_types)
+
+        # Verify payload for invitation.created
+        invitation_call = next(
+            call
+            for call in mock_schedule_user_event.call_args_list
+            if call.kwargs.get("event_type") == "invitation.created"
+        )
+        payload = invitation_call.kwargs["payload"]
+        self.assertEqual(payload["invitation_id"], str(invitation.pk))
+        self.assertEqual(payload["workspace_name"], self.workspace.name)
+        self.assertEqual(payload["role"], "member")
+        self.assertEqual(payload["message"], "Welcome to TeamSync!")
+
