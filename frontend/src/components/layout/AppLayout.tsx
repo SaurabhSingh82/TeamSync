@@ -401,20 +401,32 @@ export function AppLayout() {
               </Link>
               <span className="teamsync-brand-name">TeamSync</span>
             </div>
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
               <WorkspaceSelector selectId="workspace-selector" userId={user.id} />
+              <Link
+                aria-label="Quick search"
+                className="hidden items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-500 shadow-2xs transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800 lg:flex"
+                to="/search"
+              >
+                <Search aria-hidden="true" className="text-slate-400" size={13} />
+                <span>Search…</span>
+                <kbd className="ml-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                  /
+                </kbd>
+              </Link>
             </div>
             <div className="ml-auto flex items-center gap-3">
               <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
               <Link
                 aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-                className="relative grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+                className="relative grid size-10 place-items-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                 to="/notifications"
               >
                 <Bell aria-hidden="true" size={19} />
                 {unreadCount > 0 && (
-                  <span className="absolute right-0 top-0 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                  <span className="absolute -right-0.5 -top-0.5 flex size-4.5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-xs ring-2 ring-white">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-60" />
+                    <span className="relative text-[9px] font-bold">{unreadCount > 99 ? '99+' : unreadCount}</span>
                   </span>
                 )}
               </Link>

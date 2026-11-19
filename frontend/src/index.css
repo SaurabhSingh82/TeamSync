@@ -340,3 +340,47 @@ html.dark .toast-item button.text-slate-400 {
 html.dark .toast-item button.text-slate-400:hover {
   color: var(--teamsync-dark-text);
 }
+
+/* ─── Premium UI Polish: Micro-interactions & Scrollbars ───────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.3);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 148, 158, 0.5);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.985);
+  transition: transform 100ms ease;
+}
+
+.teamsync-glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+html.dark .teamsync-glass {
+  background: rgba(13, 17, 23, 0.88);
+}
+

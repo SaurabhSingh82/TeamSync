@@ -10,6 +10,7 @@ import {
 } from '../workspaces/api'
 import type { WorkspaceInvitation } from '../workspaces/types'
 import { useRealtime } from '../realtime/useRealtime'
+import { useToast } from '../components/ui/ToastProvider'
 
 export function InvitationsPage() {
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([])
@@ -17,6 +18,7 @@ export function InvitationsPage() {
   const [busyId, setBusyId] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const navigate = useNavigate()
+  const { show } = useToast()
 
   // ── Load from API ─────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -96,9 +98,21 @@ export function InvitationsPage() {
     try {
       if (action === 'accept') {
         const result = await acceptReceivedInvitation(invitation.id)
+        show({
+          variant: 'success',
+          title: 'Welcome aboard!',
+          message: `You have successfully joined "${result.workspace.name}".`,
+          duration: 4000,
+        })
         navigate(`/workspaces/${result.workspace.id}`, { replace: true })
       } else {
         await rejectReceivedInvitation(invitation.id)
+        show({
+          variant: 'info',
+          title: 'Invitation Declined',
+          message: `Declined invitation to "${invitation.workspace_name}".`,
+          duration: 3500,
+        })
         await load()
       }
     } catch (actionError) {
