@@ -25,6 +25,7 @@ import type {
 } from '../workspaces/types'
 import { useToast } from '../components/ui/ToastProvider'
 import { useRealtime } from '../realtime/useRealtime'
+import { CenteredLoader } from '../components/ui/Loading'
 
 type Confirmation =
   | { kind: 'remove'; member: WorkspaceMember }
@@ -247,7 +248,7 @@ export function WorkspaceMembersPage() {
   }
 
   if (loadedWorkspaceId !== workspaceId) {
-    return <p role="status">Loading workspace members…</p>
+    return <CenteredLoader message="Loading workspace members…" />
   }
   if (!workspace) {
     return (

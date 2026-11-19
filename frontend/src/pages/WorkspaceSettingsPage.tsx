@@ -12,6 +12,7 @@ import {
   updateWorkspace,
 } from '../workspaces/api'
 import type { Workspace } from '../workspaces/types'
+import { CenteredLoader } from '../components/ui/Loading'
 
 export function WorkspaceSettingsPage() {
   const { workspaceId } = useParams()
@@ -105,7 +106,7 @@ export function WorkspaceSettingsPage() {
   }
 
   if (loadedWorkspaceId !== workspaceId) {
-    return <p role="status">Loading workspace…</p>
+    return <CenteredLoader message="Loading workspace…" />
   }
   if (!workspace) {
     return (
