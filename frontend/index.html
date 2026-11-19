@@ -13,6 +13,8 @@
       try {
         if (localStorage.getItem('teamsync.theme') === 'dark') {
           document.documentElement.classList.add('dark')
+          document.documentElement.style.backgroundColor = '#010409'
+          document.documentElement.style.colorScheme = 'dark'
         }
       } catch {
         // The application will fall back to light mode if storage is unavailable.

@@ -19,6 +19,7 @@ import { useProjectContext } from '../components/projects/projectContext'
 import { TaskPriorityBadge, TaskStatusBadge } from '../components/tasks/TaskBadge'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
+import { CenteredLoader } from '../components/ui/Loading'
 import { ConfirmDialog } from '../components/workspaces/ConfirmDialog'
 import { listAllProjectMembers } from '../projects/api'
 import { canManageProject } from '../projects/permissions'
@@ -238,7 +239,7 @@ export function TaskDetailPage({
   }
 
   if (loadedTaskId !== taskId) {
-    return <p className="text-sm text-slate-600" role="status">Loading task…</p>
+    return <CenteredLoader message="Loading task…" />
   }
   if (!task || task.project_id !== project.id) {
     return (

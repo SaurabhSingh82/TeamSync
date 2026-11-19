@@ -23,6 +23,9 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from '../workspaces/types'
+import { useToast } from '../components/ui/ToastProvider'
+import { useRealtime } from '../realtime/useRealtime'
+import { CenteredLoader } from '../components/ui/Loading'
 
 type Confirmation =
   | { kind: 'remove'; member: WorkspaceMember }
@@ -59,6 +62,7 @@ export function WorkspaceMembersPage() {
   const [transferTargetId, setTransferTargetId] = useState('')
   const [confirmLeave, setConfirmLeave] = useState(false)
   const navigate = useNavigate()
+  const { show } = useToast()
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -68,6 +72,23 @@ export function WorkspaceMembersPage() {
     setInvitations(data.invitations)
     setError('')
   }, [workspaceId])
+
+  useRealtime(
+    workspaceId ? `/ws/workspaces/${workspaceId}/` : null,
+    useCallback(
+      (event: { type: string; payload?: Record<string, unknown> }) => {
+        if (
+          event.type === 'resync.required' ||
+          event.type.startsWith('workspace.') ||
+          event.type.startsWith('member.') ||
+          event.type.startsWith('invitation.')
+        ) {
+          void load()
+        }
+      },
+      [load],
+    ),
+  )
 
   async function refreshAfterMutation() {
     try {
@@ -202,9 +223,21 @@ export function WorkspaceMembersPage() {
       if (action === 'resend') {
         await resendWorkspaceInvitation(workspaceId, invitation.id)
         setNotice(`A new invitation email for ${invitation.email} is queued.`)
+        show({
+          variant: 'info',
+          title: 'Invitation resent',
+          message: `A new invitation email for ${invitation.email} has been queued.`,
+          duration: 3500,
+        })
       } else {
         await revokeWorkspaceInvitation(workspaceId, invitation.id)
         setNotice(`Invitation to ${invitation.email} was revoked.`)
+        show({
+          variant: 'warning',
+          title: 'Invitation revoked',
+          message: `The invitation for ${invitation.email} was revoked.`,
+          duration: 3500,
+        })
       }
       await refreshAfterMutation()
     } catch (actionError) {
@@ -215,7 +248,7 @@ export function WorkspaceMembersPage() {
   }
 
   if (loadedWorkspaceId !== workspaceId) {
-    return <p role="status">Loading workspace members…</p>
+    return <CenteredLoader message="Loading workspace members…" />
   }
   if (!workspace) {
     return (
@@ -376,32 +409,42 @@ export function WorkspaceMembersPage() {
                   isOwner || invitation.role !== 'admin'
                 return (
                   <li
-                    className="flex flex-wrap items-center justify-between gap-3 p-4"
+                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition hover:bg-slate-50/60"
                     key={invitation.id}
                   >
-                    <div>
-                      <p className="font-medium text-slate-900">{invitation.email}</p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {roleLabels[invitation.role]} · {invitation.status} · expires{' '}
-                        {new Date(invitation.expires_at).toLocaleDateString()}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-900">{invitation.email}</p>
+                        <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 capitalize dark:bg-indigo-950/50 dark:text-indigo-300">
+                          {invitation.role}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                            invitation.status === 'pending'
+                              ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                              : invitation.status === 'accepted'
+                                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {invitation.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Expires {new Date(invitation.expires_at).toLocaleDateString()} · Email delivery: {invitation.email_delivery.status} ({invitation.email_delivery.attempts} attempt{invitation.email_delivery.attempts === 1 ? '' : 's'})
                       </p>
                       {invitation.message && (
-                        <p className="mt-2 max-w-xl whitespace-pre-wrap text-sm text-slate-600">
-                          “{invitation.message}”
+                        <p className="mt-2 max-w-xl rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 italic">
+                          &ldquo;{invitation.message}&rdquo;
                         </p>
                       )}
-                      <p className="mt-1 text-xs text-slate-600">
-                        Email {invitation.email_delivery.status} ·{' '}
-                        {invitation.email_delivery.attempts} attempt
-                        {invitation.email_delivery.attempts === 1 ? '' : 's'}
-                      </p>
                     </div>
                     {canManageInvitation && (
-                      <div className="flex gap-3">
+                      <div className="flex items-center gap-2">
                         {(invitation.status === 'pending' ||
                           invitation.status === 'expired') && (
                           <button
-                            className="text-sm font-medium text-indigo-700 hover:underline"
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-2xs transition hover:bg-indigo-50 disabled:opacity-50"
                             disabled={busyAction === invitation.id}
                             onClick={() => void handleInvitationAction(invitation, 'resend')}
                             type="button"
@@ -413,7 +456,7 @@ export function WorkspaceMembersPage() {
                         )}
                         {invitation.status === 'pending' && (
                           <button
-                            className="text-sm font-medium text-red-700 hover:underline"
+                            className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-2xs transition hover:bg-rose-50 disabled:opacity-50"
                             disabled={busyAction === invitation.id}
                             onClick={() => void handleInvitationAction(invitation, 'revoke')}
                             type="button"

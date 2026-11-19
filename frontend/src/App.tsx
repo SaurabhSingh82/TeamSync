@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router'
 
 import { AppLayout } from './components/layout/AppLayout'
 import { RequireAuth } from './components/auth/RequireAuth'
+import { PageLoader } from './components/ui/Loading'
 
 const InvitationAcceptPage = lazy(() => import('./pages/InvitationAcceptPage').then((module) => ({ default: module.InvitationAcceptPage })))
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
@@ -32,7 +33,7 @@ const SearchPage = lazy(() => import('./pages/SearchPage').then((module) => ({ d
 
 function App() {
   return (
-    <Suspense fallback={<p className="p-8 text-sm text-slate-600" role="status">Loading page…</p>}>
+    <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />

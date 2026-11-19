@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Activity,
   Bell,
@@ -17,14 +17,17 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
 import { getApiErrorMessage } from '../../auth/errors'
 import { useAuth } from '../../auth/useAuth'
 import { Avatar } from '../ui/Avatar'
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector'
 import { listNotifications } from '../../notifications/api'
-import { notificationsUpdatedEvent } from '../../notifications/events'
+import { notificationsUpdatedEvent, publishUnreadNotificationCount } from '../../notifications/events'
+import { acceptReceivedInvitation, rejectReceivedInvitation } from '../../workspaces/api'
+import { useRealtime } from '../../realtime/useRealtime'
+import { useToast } from '../ui/ToastProvider'
 import teamsyncLogo from '../../assets/teamsync-logo.svg'
 import {
   clearStoredWorkspaceId,
@@ -104,10 +107,14 @@ export function AppLayout() {
   const { error: authError, loading, logout, user } = useAuth()
   const [logoutError, setLogoutError] = useState('')
   const [unreadCount, setUnreadCount] = useState(0)
+  const unreadCountRef = useRef(unreadCount)
+  unreadCountRef.current = unreadCount
   const [notificationError, setNotificationError] = useState('')
   const [hoveredSidebarItem, setHoveredSidebarItem] = useState<string | null>(null)
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const location = useLocation()
+  const navigate = useNavigate()
+  const { showInvitation, show } = useToast()
   const routeWorkspaceId = workspaceIdFromPath(location.pathname)
   const activeWorkspaceId = routeWorkspaceId ?? (user ? getStoredWorkspaceId(user.id) : null)
 
@@ -153,9 +160,104 @@ export function AppLayout() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const isDark = theme === 'dark'
+    document.documentElement.classList.toggle('dark', isDark)
+    document.documentElement.style.backgroundColor = isDark ? '#010409' : '#f5f7fa'
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
     window.localStorage.setItem('teamsync.theme', theme)
   }, [theme])
+
+  // ── Real-time WebSocket: instant badge + toasts ───────────────────────────
+  const handleRealtimeEvent = useCallback(
+    (event: { type: string; payload?: Record<string, unknown> }) => {
+      if (!user) return
+
+      if (event.type === 'resync.required') {
+        // Reconnect: re-fetch real unread count from API
+        void loadUnreadNotificationCount().then((count) => {
+          setUnreadCount(count)
+          publishUnreadNotificationCount(count)
+        })
+        return
+      }
+
+      if (event.type === 'notification.created') {
+        const isUnread = event.payload?.unread === true
+        if (isUnread) {
+          const next = unreadCountRef.current + 1
+          setUnreadCount(next)
+          publishUnreadNotificationCount(next)
+        }
+        return
+      }
+
+      if (event.type === 'invitation.created') {
+        const p = event.payload ?? {}
+        const workspaceName = String(p.workspace_name ?? 'a workspace')
+        const inviterName = String(p.invited_by_name ?? 'Someone')
+        const role = String(p.role ?? 'member')
+        const invitationId = String(p.invitation_id ?? '')
+        const message = p.message ? String(p.message) : undefined
+        const workspaceId = p.workspace_id ? String(p.workspace_id) : undefined
+
+        showInvitation({
+          invitationId,
+          workspaceId,
+          workspaceName,
+          inviterName,
+          role,
+          message,
+          onAccept: async () => {
+            const res = await acceptReceivedInvitation(invitationId)
+            show({
+              variant: 'success',
+              title: 'Welcome aboard!',
+              message: `You have successfully joined "${res.workspace.name}".`,
+              duration: 4000,
+            })
+            navigate(`/workspaces/${res.workspace.id}`)
+          },
+          onReject: async () => {
+            await rejectReceivedInvitation(invitationId)
+            show({
+              variant: 'info',
+              title: 'Invitation Declined',
+              message: `Declined invitation to "${workspaceName}".`,
+              duration: 3500,
+            })
+          },
+          onView: () => {
+            void navigate(
+              invitationId
+                ? `/invitations?invitation=${invitationId}`
+                : '/invitations',
+            )
+          },
+        })
+        return
+      }
+
+      if (event.type === 'notifications.read_all') {
+        setUnreadCount(0)
+        publishUnreadNotificationCount(0)
+        return
+      }
+
+      if (event.type === 'notification.read_state') {
+        const isRead = event.payload?.read === true
+        // On mark-read: decrement; on mark-unread: increment (guard ≥0)
+        setUnreadCount((prev) => {
+          const next = isRead ? Math.max(0, prev - 1) : prev + 1
+          publishUnreadNotificationCount(next)
+          return next
+        })
+      }
+    },
+    [user, showInvitation, show, navigate],
+  )
+
+  useRealtime(user ? '/ws/notifications/' : null, handleRealtimeEvent)
+  // ─────────────────────────────────────────────────────────────────────────
 
   async function handleLogout() {
     setLogoutError('')
@@ -326,20 +428,32 @@ export function AppLayout() {
               </Link>
               <span className="teamsync-brand-name">TeamSync</span>
             </div>
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
               <WorkspaceSelector selectId="workspace-selector" userId={user.id} />
+              <Link
+                aria-label="Quick search"
+                className="hidden items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-500 shadow-2xs transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800 lg:flex"
+                to="/search"
+              >
+                <Search aria-hidden="true" className="text-slate-400" size={13} />
+                <span>Search…</span>
+                <kbd className="ml-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                  /
+                </kbd>
+              </Link>
             </div>
             <div className="ml-auto flex items-center gap-3">
               <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
               <Link
                 aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-                className="relative grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+                className="relative grid size-10 place-items-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                 to="/notifications"
               >
                 <Bell aria-hidden="true" size={19} />
                 {unreadCount > 0 && (
-                  <span className="absolute right-0 top-0 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                  <span className="absolute -right-0.5 -top-0.5 flex size-4.5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-xs ring-2 ring-white">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-60" />
+                    <span className="relative text-[9px] font-bold">{unreadCount > 99 ? '99+' : unreadCount}</span>
                   </span>
                 )}
               </Link>

@@ -234,6 +234,9 @@ def resend_invitation(*, invitation):
             "updated_at",
         )
     )
+    from apps.notifications.services import notify_workspace_invitation
+
+    notify_workspace_invitation(invitation=invitation)
     if settings.INVITATION_SEND_IMMEDIATELY:
         transaction.on_commit(
             lambda: dispatch_pending_invitation_emails(

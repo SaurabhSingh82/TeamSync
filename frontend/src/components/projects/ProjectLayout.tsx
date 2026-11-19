@@ -10,6 +10,7 @@ import { ProjectStatusBadge } from '../ui/Badge'
 import { AvatarGroup } from './AvatarGroup'
 import type { ProjectOutletContext } from './projectContext'
 import { useRealtime } from '../../realtime/useRealtime'
+import { CenteredLoader } from '../ui/Loading'
 
 export function ProjectLayout() {
   const { projectId, workspaceId } = useParams()
@@ -74,7 +75,7 @@ export function ProjectLayout() {
   }, [projectId])
 
   if (loadedProjectId !== projectId) {
-    return <p className="text-sm text-slate-600" role="status">Loading project…</p>
+    return <CenteredLoader message="Loading project…" />
   }
   if (!project || project.workspace_id !== workspaceId) {
     return (
