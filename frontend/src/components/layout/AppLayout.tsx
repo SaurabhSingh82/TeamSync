@@ -25,6 +25,7 @@ import { Avatar } from '../ui/Avatar'
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector'
 import { listNotifications } from '../../notifications/api'
 import { notificationsUpdatedEvent, publishUnreadNotificationCount } from '../../notifications/events'
+import { acceptReceivedInvitation, rejectReceivedInvitation } from '../../workspaces/api'
 import { useRealtime } from '../../realtime/useRealtime'
 import { useToast } from '../ui/ToastProvider'
 import teamsyncLogo from '../../assets/teamsync-logo.svg'
@@ -113,7 +114,7 @@ export function AppLayout() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const location = useLocation()
   const navigate = useNavigate()
-  const { showInvitation } = useToast()
+  const { showInvitation, show } = useToast()
   const routeWorkspaceId = workspaceIdFromPath(location.pathname)
   const activeWorkspaceId = routeWorkspaceId ?? (user ? getStoredWorkspaceId(user.id) : null)
 
@@ -193,12 +194,35 @@ export function AppLayout() {
         const inviterName = String(p.invited_by_name ?? 'Someone')
         const role = String(p.role ?? 'member')
         const invitationId = String(p.invitation_id ?? '')
-        // Update badge (notification was already counted by notification.created)
-        // Show premium invitation toast
+        const message = p.message ? String(p.message) : undefined
+        const workspaceId = p.workspace_id ? String(p.workspace_id) : undefined
+
         showInvitation({
+          invitationId,
+          workspaceId,
           workspaceName,
           inviterName,
           role,
+          message,
+          onAccept: async () => {
+            const res = await acceptReceivedInvitation(invitationId)
+            show({
+              variant: 'success',
+              title: 'Welcome aboard!',
+              message: `You have successfully joined "${res.workspace.name}".`,
+              duration: 4000,
+            })
+            navigate(`/workspaces/${res.workspace.id}`)
+          },
+          onReject: async () => {
+            await rejectReceivedInvitation(invitationId)
+            show({
+              variant: 'info',
+              title: 'Invitation Declined',
+              message: `Declined invitation to "${workspaceName}".`,
+              duration: 3500,
+            })
+          },
           onView: () => {
             void navigate(
               invitationId
@@ -226,7 +250,7 @@ export function AppLayout() {
         })
       }
     },
-    [user, showInvitation, navigate],
+    [user, showInvitation, show, navigate],
   )
 
   useRealtime(user ? '/ws/notifications/' : null, handleRealtimeEvent)

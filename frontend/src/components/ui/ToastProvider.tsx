@@ -1,16 +1,13 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Toast, type ToastData, type ToastVariant } from './Toast'
+import { Toast, type InvitationActionData, type ToastData, type ToastVariant } from './Toast'
+
+export type ShowInvitationOptions = InvitationActionData
 
 interface ToastContextValue {
   show: (opts: Omit<ToastData, 'id'>) => string
   dismiss: (id: string) => void
-  showInvitation: (opts: {
-    workspaceName: string
-    inviterName: string
-    role: string
-    onView?: () => void
-  }) => string
+  showInvitation: (opts: ShowInvitationOptions) => string
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -36,7 +33,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (opts: Omit<ToastData, 'id'>): string => {
       const id = `toast-${++_toastIdCounter}`
       setToasts((prev) => [
-        ...prev.slice(-4), // keep max 5 visible
+        ...prev.slice(-3), // keep max 4 visible
         { ...opts, id },
       ])
       return id
@@ -45,26 +42,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   )
 
   const showInvitation = useCallback(
-    ({
-      workspaceName,
-      inviterName,
-      role,
-      onView,
-    }: {
-      workspaceName: string
-      inviterName: string
-      role: string
-      onView?: () => void
-    }) => {
+    (invitation: ShowInvitationOptions) => {
       return show({
         variant: 'invitation' as ToastVariant,
         title: `Workspace invitation`,
-        message: `${inviterName} invited you to join "${workspaceName}" as ${role}.`,
-        detail: 'Click "View" to accept or reject.',
-        duration: 8000,
-        action: onView
-          ? { label: 'View invitation', onClick: onView }
-          : undefined,
+        message: `${invitation.inviterName} invited you to join "${invitation.workspaceName}" as ${invitation.role}.`,
+        duration: 30000, // 30s for interactive decision
+        invitation,
       })
     },
     [show],
@@ -76,11 +60,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {createPortal(
         <div
           aria-label="Notifications"
-          className="toast-container fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3"
+          className="toast-container fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3 pointer-events-none"
           role="region"
         >
           {toasts.map((t) => (
-            <Toast key={t.id} toast={t} onDismiss={dismiss} />
+            <div className="pointer-events-auto" key={t.id}>
+              <Toast toast={t} onDismiss={dismiss} />
+            </div>
           ))}
         </div>,
         document.body,
