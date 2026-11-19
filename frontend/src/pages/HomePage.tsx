@@ -1,21 +1,27 @@
 import {
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
-  Bell,
   Calendar,
   CheckCircle2,
   FolderKanban,
   LayoutDashboard,
   Mail,
   Plus,
+  Search,
   ShieldCheck,
-  Sparkles,
-  Users,
+  Terminal,
   Zap,
 } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { useAuth } from '../auth/useAuth'
+
+function getGreeting(name: string) {
+  const hour = new Date().getHours()
+  const timeOfDay = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+  return `${timeOfDay}, ${name}`
+}
 
 export function HomePage() {
   const { user } = useAuth()
@@ -24,207 +30,234 @@ export function HomePage() {
     const displayName = user.first_name?.trim() || user.email.split('@')[0]
 
     return (
-      <div className="space-y-10">
-        {/* Hub Header */}
-        <header className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/60 to-indigo-50/40 p-8 shadow-xs dark:border-slate-800 dark:from-slate-900/90 dark:via-slate-900/50 dark:to-indigo-950/20">
-          <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/60 bg-indigo-50/80 px-3 py-1 text-xs font-semibold text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/50 dark:text-indigo-300">
-                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                Real-Time Synchronized
+      <div className="space-y-8">
+        {/* Personal Executive Header */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90 sm:p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="size-2 rounded-full bg-emerald-500" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Engineering Hub
+                </span>
               </div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
-                Welcome back, {displayName}
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+                {getGreeting(displayName)}
               </h1>
-              <p className="max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Jump straight into your active tasks, monitor workspace velocity, or collaborate with your team in real time.
+              <p className="max-w-xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                Welcome to your TeamSync command center. Jump directly into your active sprint, review team deliverables, or manage workspaces.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 to="/workspaces/new"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               >
-                <Plus size={16} />
+                <Plus size={14} />
                 New Workspace
               </Link>
               <Link
                 to="/dashboard"
-                className="teamsync-primary-button inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition hover:shadow"
+                className="teamsync-primary-button inline-flex h-9 items-center gap-1.5 rounded-lg px-4 text-xs font-semibold shadow-2xs transition"
               >
                 Open Dashboard
-                <ArrowRight size={16} />
+                <ArrowRight size={13} />
               </Link>
             </div>
           </div>
-        </header>
+        </div>
 
-        {/* Quick Launch Cards */}
-        <section aria-labelledby="quick-launch-heading">
-          <h2 id="quick-launch-heading" className="text-sm font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">
-            Quick Launch Hub
-          </h2>
+        {/* Primary Workspace Navigation Grid */}
+        <section aria-labelledby="hub-navigation">
+          <div className="flex items-center justify-between">
+            <h2 id="hub-navigation" className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Workspace Workflows
+            </h2>
+            <span className="text-xs text-slate-400">Quick launch</span>
+          </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <QuickLaunchCard
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <HubCard
               title="Dashboard"
-              description="Live view of open tasks, upcoming deadlines, and recent workspace activity."
+              description="Live telemetry of open tasks, upcoming 7-day deadlines, and active projects."
               to="/dashboard"
-              icon={<LayoutDashboard size={22} className="text-indigo-600 dark:text-indigo-400" />}
-              badge="Overview"
+              icon={<LayoutDashboard size={18} className="text-slate-700 dark:text-slate-300" />}
             />
-            <QuickLaunchCard
-              title="Calendar & Deadlines"
-              description="Interactive calendar view of sprint schedules and task due dates."
+            <HubCard
+              title="Sprint Calendar"
+              description="Timeline schedule of task deadlines, project milestones, and sprint dates."
               to="/calendar"
-              icon={<Calendar size={22} className="text-sky-600 dark:text-sky-400" />}
-              badge="Schedule"
+              icon={<Calendar size={18} className="text-slate-700 dark:text-slate-300" />}
             />
-            <QuickLaunchCard
-              title="Analytics & Velocity"
-              description="Deep dive into workload balance, completion rates, and productivity metrics."
+            <HubCard
+              title="Velocity Analytics"
+              description="Comprehensive charts on workload velocity, task completion, and status balance."
               to="/analytics"
-              icon={<BarChart3 size={22} className="text-emerald-600 dark:text-emerald-400" />}
-              badge="Metrics"
+              icon={<BarChart3 size={18} className="text-slate-700 dark:text-slate-300" />}
             />
-            <QuickLaunchCard
-              title="Workspace Invitations"
-              description="Review pending team invitations and join new workspaces instantly."
+            <HubCard
+              title="Invitations"
+              description="Review pending team invitations and join new collaborative workspaces."
               to="/invitations"
-              icon={<Mail size={22} className="text-violet-600 dark:text-violet-400" />}
-              badge="Collaboration"
-            />
-            <QuickLaunchCard
-              title="Live Notifications"
-              description="Real-time alerts for task mentions, assignments, and workspace events."
-              to="/notifications"
-              icon={<Bell size={22} className="text-amber-600 dark:text-amber-400" />}
-              badge="Updates"
-            />
-            <QuickLaunchCard
-              title="New Workspace"
-              description="Create a dedicated space for your next project, client, or engineering team."
-              to="/workspaces/new"
-              icon={<FolderKanban size={22} className="text-rose-600 dark:text-rose-400" />}
-              badge="Admin"
+              icon={<Mail size={18} className="text-slate-700 dark:text-slate-300" />}
             />
           </div>
         </section>
 
-        {/* Key Features Banner */}
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900/90">
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="flex items-start gap-3.5">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-                <Zap size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Live WebSocket Sync</h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Invitations, tasks, and notifications arrive instantly without page refreshes.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3.5">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
-                <ShieldCheck size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Granular Role Access</h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Owner, Admin, Member, and Viewer permissions tailored per workspace.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3.5">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400">
-                <CheckCircle2 size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Multi-Project Boards</h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Kanban drag-and-drop, label filtering, and milestone tracking.
-                </p>
-              </div>
-            </div>
+        {/* Pro Developer Bar */}
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200/60 bg-slate-50/70 p-4 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Terminal size={14} className="text-slate-500" />
+            <span>
+              Pro Tip: Press{' '}
+              <kbd className="rounded border border-slate-300 bg-white px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700 shadow-2xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                /
+              </kbd>{' '}
+              anywhere to quickly search projects, tasks, and teammates.
+            </span>
           </div>
-        </section>
+          <Link
+            to="/search"
+            className="inline-flex items-center gap-1 font-semibold text-slate-900 hover:underline dark:text-slate-100"
+          >
+            Open Search <ArrowRight size={12} />
+          </Link>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-16 py-4">
-      {/* Landing Hero */}
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white via-indigo-50/20 to-slate-50/50 p-8 sm:p-14 text-center shadow-xs dark:border-slate-800 dark:from-slate-900 dark:via-slate-900/60 dark:to-slate-950">
-        <div className="mx-auto max-w-3xl space-y-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-indigo-50/80 px-4 py-1.5 text-xs font-semibold text-indigo-700 shadow-xs dark:border-indigo-800/60 dark:bg-indigo-950/50 dark:text-indigo-300">
-            <Sparkles size={14} className="text-indigo-500" />
-            Next-Gen Engineering Collaboration Platform
+    <div className="space-y-16 py-6">
+      {/* High-Craft Developer Hero */}
+      <section className="relative mx-auto max-w-4xl text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          <span className="size-2 rounded-full bg-emerald-500" />
+          <span>TeamSync Platform · Real-Time Engineering Collaboration</span>
+        </div>
+
+        <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-slate-950 dark:text-slate-50 sm:text-5xl lg:text-6xl">
+          The real-time workspace for high-velocity engineering teams.
+        </h1>
+
+        <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-400 sm:text-lg">
+          Coordinate sprints, track deliverables, and synchronize workspaces with instant WebSocket updates. Built for speed, precision, and focus.
+        </p>
+
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            to="/register"
+            className="teamsync-primary-button inline-flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold shadow-2xs transition"
+          >
+            Get Started Free
+            <ArrowRight size={15} />
+          </Link>
+          <Link
+            to="/login"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            Sign In to Workspace
+          </Link>
+        </div>
+      </section>
+
+      {/* Interactive Mock Window Preview */}
+      <section className="mx-auto max-w-4xl">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
+          {/* Mac-style Window Titlebar */}
+          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/60">
+            <div className="flex items-center gap-2">
+              <span className="size-2.5 rounded-full bg-red-400" />
+              <span className="size-2.5 rounded-full bg-amber-400" />
+              <span className="size-2.5 rounded-full bg-emerald-400" />
+            </div>
+            <span className="font-mono text-xs text-slate-400">teamsync / sprint-board</span>
+            <div className="size-3" />
           </div>
 
-          <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 dark:text-slate-50 sm:text-5xl lg:text-6xl">
-            Where high-velocity teams{' '}
-            <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-600 bg-clip-text text-transparent">
-              sync, build, and ship.
-            </span>
-          </h1>
+          {/* Miniature Kanban Columns */}
+          <div className="grid gap-4 p-5 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+                <span>To Do</span>
+                <span className="rounded-full bg-slate-200/70 px-1.5 text-[10px] dark:bg-slate-800">2</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                  <span className="font-medium text-slate-900 dark:text-slate-100">WebSocket toast notification</span>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                    <span className="text-red-600 font-semibold uppercase">Urgent</span>
+                    <span>Due in 2d</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <p className="mx-auto max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-400 sm:text-lg">
-            TeamSync combines real-time workspace collaboration, instant WebSocket notifications,
-            granular access controls, and sprint telemetry in one frictionless workspace.
-          </p>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+                <span>In Progress</span>
+                <span className="rounded-full bg-slate-200/70 px-1.5 text-[10px] dark:bg-slate-800">1</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                  <span className="font-medium text-slate-900 dark:text-slate-100">Fix dark mode overscroll canvas</span>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                    <span className="text-amber-600 font-semibold uppercase">High</span>
+                    <span>In Review</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-            <Link
-              to="/register"
-              className="teamsync-primary-button inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold shadow-md transition hover:shadow-lg"
-            >
-              Get Started Free
-              <ArrowRight size={16} />
-            </Link>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              Sign In
-            </Link>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+                <span>Completed</span>
+                <span className="rounded-full bg-slate-200/70 px-1.5 text-[10px] dark:bg-slate-800">14</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                  <span className="font-medium text-slate-900 line-through text-slate-400 dark:text-slate-500">Role-based invitations & RBAC</span>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-emerald-600">
+                    <span>Verified</span>
+                    <span>Done</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Feature Showcase Grid */}
-      <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-7 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-slate-700">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-            <Zap size={24} />
-          </div>
-          <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-slate-100">Real-Time Invitations</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            Receive workspace invitations instantly via live WebSocket popups with direct one-click Accept or Decline actions.
+      {/* 3 Focused Feature Pillars */}
+      <section className="mx-auto grid max-w-4xl gap-6 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+          <Zap size={20} className="text-slate-800 dark:text-slate-200" />
+          <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Sub-millisecond Sync
+          </h3>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            Real-time WebSocket event streaming ensures workspace invitations and task state changes arrive without polling or refreshes.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-7 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-slate-700">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400">
-            <ShieldCheck size={24} />
-          </div>
-          <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-slate-100">Enterprise Workspaces</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            Fine-grained role hierarchy (Owner, Admin, Member, Viewer) with secure token expiration and email invitations.
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+          <ShieldCheck size={20} className="text-slate-800 dark:text-slate-200" />
+          <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Granular Governance
+          </h3>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            Enterprise role-based access control with Owner, Admin, Member, and Viewer permissions configured securely per workspace.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-7 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-slate-700">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400">
-            <LayoutDashboard size={24} />
-          </div>
-          <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-slate-100">Sprint Dashboards</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            Monitor accessible projects, open tasks, upcoming 7-day deadlines, and overdue tasks with real-time analytics.
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90">
+          <BarChart3 size={20} className="text-slate-800 dark:text-slate-200" />
+          <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Sprint Telemetry
+          </h3>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            Monitor accessible projects, open deliverables, overdue tasks, and velocity metrics through an integrated calendar and analytics suite.
           </p>
         </div>
       </section>
@@ -232,14 +265,12 @@ export function HomePage() {
   )
 }
 
-function QuickLaunchCard({
-  badge,
+function HubCard({
   description,
   icon,
   title,
   to,
 }: {
-  badge: string
   description: string
   icon: React.ReactNode
   title: string
@@ -248,28 +279,23 @@ function QuickLaunchCard({
   return (
     <Link
       to={to}
-      className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs transition-all hover:border-indigo-300/80 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-indigo-800/80"
+      className="group flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-slate-700"
     >
       <div>
-        <div className="flex items-center justify-between">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 dark:border-slate-800 dark:bg-slate-800/80">
-            {icon}
-          </div>
-          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {badge}
-          </span>
+        <div className="flex size-9 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/80">
+          {icon}
         </div>
-        <h3 className="mt-4 text-base font-semibold text-slate-900 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400 transition-colors">
+        <h3 className="mt-3.5 text-sm font-semibold text-slate-900 transition-colors group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400">
           {title}
         </h3>
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
           {description}
         </p>
       </div>
 
-      <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-        <span>Launch</span>
-        <ArrowRight size={13} className="transition-transform group-hover:translate-x-1" />
+      <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-slate-600 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-slate-200">
+        <span>Open</span>
+        <ArrowUpRight size={13} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
       </div>
     </Link>
   )
